@@ -158,3 +158,75 @@ class GetOrderSummaryHandler:
 ```
 
 В **Clean Architecture** зависимости всегда направлены **внутрь** (к Domain), а поток данных идёт в обе стороны.
+
+---
+
+## Unit of Work
+
+Поведенческий паттерн: объединяет несколько операций с репозиториями в одну логическую транзакцию. Либо все изменения фиксируются, либо ни одно.
+
+**Проблема без UoW:**
+```python
+# Два репозитория — два разных соединения/транзакции. Нет атомарности.
+await order_repo.save(order)
+await inventory_repo.reserve(items)   # если упадёт — order сохранён, а items нет
+```
+
+**UoW знает обо всех репозиториях и управляет одной транзакцией:**
+
+```python
+from abc import ABC, abstractmethod
+from sqlalchemy.ext.asyncio import AsyncSession
+
+class UnitOfWork(ABC):
+    orders: OrderRepository
+    inventory: InventoryRepository
+
+    @abstractmethod
+    async def __aenter__(self): ...
+    @abstractmethod
+    async def __aexit__(self, *args): ...
+    @abstractmethod
+    async def commit(self): ...
+    @abstractmethod
+    async def rollback(self): ...
+
+
+class SQLAlchemyUnitOfWork(UnitOfWork):
+    def __init__(self, session_factory):
+        self._session_factory = session_factory
+
+    async def __aenter__(self):
+        self._session: AsyncSession = self._session_factory()
+        self.orders    = OrderRepository(self._session)
+        self.inventory = InventoryRepository(self._session)
+        return self
+
+    async def __aexit__(self, exc_type, *args):
+        if exc_type:
+            await self.rollback()
+        await self._session.close()
+
+    async def commit(self):
+        await self._session.commit()
+
+    async def rollback(self):
+        await self._session.rollback()
+
+
+# Использование в сервисе
+class OrderService:
+    def __init__(self, uow: UnitOfWork):
+        self.uow = uow
+
+    async def place_order(self, user_id: int, items: list):
+        async with self.uow as uow:
+            order = Order(user_id=user_id, items=items)
+            await uow.orders.save(order)
+            await uow.inventory.reserve(items)   # в одной транзакции!
+            await uow.commit()                    # или rollback при исключении
+```
+
+**Связь с репозиторием:** UoW — менеджер транзакций; Repository — абстракция доступа к данным. UoW объединяет несколько репозиториев под одну транзакцию.
+
+**Связь с DDD:** Aggregate — единица бизнес-логики, UoW — единица транзакционности. Один `commit()` = одна атомарная операция.
