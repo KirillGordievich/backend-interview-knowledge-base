@@ -1,5 +1,39 @@
 # Python — Итераторы и генераторы
 
+## Протоколы: Iterable → Iterator → Generator
+
+Три уровня абстракции, каждый следующий расширяет предыдущий:
+
+```
+Iterable ─────────────── __iter__()
+   ↑
+Iterator ─────────────── __iter__() + __next__()
+   ↑
+Generator ────────────── __iter__() + __next__() + send() + throw() + close()
+```
+
+```python
+from collections.abc import Iterable, Iterator, Generator
+import typing
+
+# Проверка:
+isinstance([1, 2], Iterable)     # True  (есть __iter__)
+isinstance([1, 2], Iterator)     # False (нет __next__)
+isinstance(iter([1, 2]), Iterator)  # True
+
+def gen(): yield 1
+isinstance(gen(), Generator)     # True
+isinstance(gen(), Iterator)      # True  (Generator IS-A Iterator)
+
+# typing-аннотация генератора:
+# Generator[YieldType, SendType, ReturnType]
+def my_gen() -> Generator[int, str, bool]:
+    value = yield 42     # yield int, receive str
+    return True           # return bool
+```
+
+---
+
 ## Контейнер
 
 Объект, инкапсулирующий значения других типов. Поддерживает `__contains__()`.
@@ -7,7 +41,7 @@
 
 ---
 
-## Итерабельный объект (Iterable)
+## Iterable (итерабельный объект)
 
 Объект, из которого можно получить итератор. Должен реализовывать `__iter__()` или `__getitem__()`.
 
@@ -36,9 +70,24 @@ for x in LegacySeq():  # 0, 10, 20
     print(x)
 ```
 
+**Iterable ≠ Iterator:** iterable создаёт новый итератор при каждом вызове `__iter__()`. Это позволяет проходить по объекту несколько раз.
+
+```python
+class Repeatable:
+    def __init__(self, data):
+        self.data = data
+
+    def __iter__(self):
+        return iter(self.data)  # каждый раз новый итератор
+
+r = Repeatable([1, 2, 3])
+list(r)  # [1, 2, 3]
+list(r)  # [1, 2, 3] ← работает повторно
+```
+
 ---
 
-## Итератор (Iterator)
+## Iterator (итератор)
 
 Объект, реализующий протокол итератора:
 - `__next__()` — возвращает следующий элемент или поднимает `StopIteration`
@@ -71,6 +120,33 @@ next(it)  # 1
 next(it)  # 2
 
 # lst можно итерировать снова, it — нет
+```
+
+**Паттерн: разделение Iterable и Iterator:**
+```python
+class SensorData:
+    """Iterable — можно проходить несколько раз."""
+    def __init__(self, readings):
+        self.readings = readings
+
+    def __iter__(self):
+        return SensorIterator(self.readings)  # новый итератор каждый раз
+
+class SensorIterator:
+    """Iterator — одноразовый, хранит позицию."""
+    def __init__(self, readings):
+        self.readings = readings
+        self.index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.index >= len(self.readings):
+            raise StopIteration
+        value = self.readings[self.index]
+        self.index += 1
+        return value
 ```
 
 ---
@@ -106,7 +182,63 @@ next(fib)  # 2
 
 `yield` замораживает выполнение функции и возвращает значение. При следующем `next()` выполнение продолжается с того же места.
 
-Когда функция завершается (`return` или конец тела) — поднимается `StopIteration`. Значение `return` передаётся как `value` в исключение.
+---
+
+## return в генераторе и StopIteration.value
+
+Когда генераторная функция завершается — автоматически поднимается `StopIteration`. Если есть `return value` — значение сохраняется в `StopIteration.value`.
+
+```python
+def gen_with_return():
+    yield 1
+    yield 2
+    return "finished"   # НЕ возвращает значение через yield!
+
+g = gen_with_return()
+print(next(g))  # 1
+print(next(g))  # 2
+
+try:
+    next(g)
+except StopIteration as e:
+    print(e.value)  # "finished" ← значение return
+```
+
+**Если `return` не написан — Python подставляет неявный `return None`:**
+```python
+def gen_no_return():
+    yield 1
+
+g = gen_no_return()
+next(g)  # 1
+
+try:
+    next(g)
+except StopIteration as e:
+    print(e.value)  # None ← неявный return None
+```
+
+**Где используется StopIteration.value?** В `yield from`:
+```python
+def sub():
+    yield 1
+    yield 2
+    return "sub_result"
+
+def main():
+    result = yield from sub()  # result = "sub_result"
+    print(f"Got: {result}")
+    yield 99
+
+g = main()
+print(next(g))  # 1
+print(next(g))  # 2
+print(next(g))  # Got: sub_result → 99
+```
+
+`yield from` автоматически ловит `StopIteration` от подгенератора и извлекает `.value`. Без `yield from` пришлось бы вручную ловить `StopIteration`.
+
+**Важно:** `return` с значением в генераторе — это НЕ yield. Значение нельзя получить через `next()`, только через `StopIteration.value` или `yield from`.
 
 ---
 
