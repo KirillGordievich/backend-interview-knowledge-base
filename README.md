@@ -28,14 +28,14 @@
 | Файл | Темы |
 |---|---|
 | [basics.md](sql/basics.md) | SQL, нормализация, 1NF/2NF/3NF, DDL/DML/DCL, DELETE vs TRUNCATE |
-| [transactions.md](sql/transactions.md) | Транзакции, ACID, уровни изоляции |
+| [transactions.md](sql/transactions.md) | Транзакции, ACID, уровни изоляции (READ UNCOMMITTED → SERIALIZABLE), аномалии (dirty/non-repeatable/phantom read, write skew), MVCC, SAVEPOINT |
 | [joins.md](sql/joins.md) | INNER/LEFT/FULL OUTER JOIN, GROUP BY, HAVING, UNION/INTERSECT/EXCEPT |
 | [indexes.md](sql/indexes.md) | Виды индексов, кластерный vs некластерный, когда планировщик не использует индекс, EXPLAIN |
 | [constraints.md](sql/constraints.md) | PRIMARY KEY, FOREIGN KEY + CASCADE, UNIQUE, CHECK, отношения 1:1/1:N/M:N |
 | [cte.md](sql/cte.md) | CTE (`WITH`), подзапросы, коррелированные подзапросы, рекурсивные CTE, EXISTS vs IN vs JOIN |
 | [window_functions.md](sql/window_functions.md) | ROW_NUMBER/RANK/DENSE_RANK, LAG/LEAD, агрегаты с OVER, PARTITION BY, рамка окна |
 | [views.md](sql/views.md) | Обычные и материализованные представления, REFRESH, обновляемые view |
-| [locking.md](sql/locking.md) | Row-level блокировки, SELECT FOR UPDATE, NOWAIT, SKIP LOCKED, дедлоки |
+| [locking.md](sql/locking.md) | Table-level блокировки (8 режимов), row-level блокировки (FOR UPDATE/SHARE), advisory locks, SELECT FOR UPDATE, NOWAIT, SKIP LOCKED, дедлоки, мониторинг блокировок |
 | [orm.md](sql/orm.md) | ORM, проблема N+1, eager loading, SQL-инъекции, когда использовать raw SQL |
 
 ---
@@ -170,6 +170,18 @@
 | [networking.md](docker/networking.md) | Bridge/host/none/overlay, user-defined bridge, DNS, проброс портов, сети в Compose |
 | [volumes.md](docker/volumes.md) | Volumes vs bind mounts vs tmpfs, named/anonymous volumes, backup, node_modules трюк |
 | [optimization.md](docker/optimization.md) | Multi-stage builds, выбор базового образа, кэш слоёв, безопасность, HEALTHCHECK, сканирование |
+
+---
+
+## Kubernetes
+
+| Файл | Темы |
+|---|---|
+| [basics.md](kubernetes/basics.md) | Архитектура кластера (Control Plane, Worker Node), Pod, ReplicaSet, Deployment, StatefulSet, DaemonSet, Job, Namespaces, Labels |
+| [services.md](kubernetes/services.md) | Service (ClusterIP/NodePort/LoadBalancer), Headless Service, DNS, Ingress, Ingress Controller |
+| [storage.md](kubernetes/storage.md) | Volumes, PV, PVC, StorageClass, dynamic provisioning, StatefulSet + volumeClaimTemplates |
+| [configuration.md](kubernetes/configuration.md) | ConfigMap, Secret, resource requests/limits, QoS классы, Liveness/Readiness/Startup probes |
+| [scaling.md](kubernetes/scaling.md) | RollingUpdate/Recreate, Blue-Green, Canary, HPA, VPA, Taints/Tolerations, Node Affinity, PDB |
 
 ---
 
