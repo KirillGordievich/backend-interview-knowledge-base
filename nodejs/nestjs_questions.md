@@ -12,6 +12,24 @@
 
 ---
 
+**Q: Опиши типичную структуру NestJS приложения.**
+
+Слоистая архитектура — каждый слой отвечает за своё:
+
+```
+Controller       — принимает HTTP-запрос, извлекает параметры, возвращает ответ
+    ↓
+Service          — бизнес-логика, оркестрация
+    ↓
+Repository/ORM   — работа с БД (TypeORM, Prisma, MikroORM)
+    ↓
+Database         — PostgreSQL, MongoDB, ...
+```
+
+Controller не знает про БД. Service не знает про HTTP. Repository не знает про бизнес-правила. Каждый слой зависит только от слоя ниже — легко тестировать и заменять.
+
+---
+
 **Q: Из чего состоит модуль в NestJS?**
 
 ```
@@ -35,6 +53,18 @@
 ---
 
 ## Dependency Injection
+
+**Q: Зачем нужен Dependency Injection? Почему не создавать зависимости напрямую?**
+
+Без DI — жёсткая связность: `new UsersService(new Repository(new Database()))` в каждом месте. Проблемы:
+- **Тестирование** — нельзя подменить зависимость на мок
+- **Связность** — изменил конструктор Repository → правь везде где создаёшь
+- **Переиспользование** — нельзя легко заменить реализацию (Redis cache → Memory cache)
+- **Lifecycle** — кто управляет созданием и уничтожением?
+
+DI решает всё это: фреймворк создаёт зависимости, управляет их жизненным циклом, позволяет подменять реализации через провайдеры.
+
+---
 
 **Q: Как работает DI в NestJS?**
 
@@ -99,9 +129,34 @@ app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
 ---
 
-**Q: Что такое Guard и чем отличается от Middleware?**
+**Q: Что такое Middleware в NestJS и когда использовать?**
 
-Guard определяет **может ли** запрос быть обработан (авторизация). Имеет доступ к `ExecutionContext` — знает какой handler будет вызван. Middleware — просто пропускает запрос дальше или нет, без контекста о handler'е.
+Функция, которая выполняется **до** всего остального (Guards, Interceptors, Pipes). Имеет доступ к `req`, `res`, `next()` — как в Express. Не знает какой handler будет вызван.
+
+Когда использовать: логирование запросов, CORS, парсинг cookies, rate limiting — всё что не зависит от конкретного роута.
+
+```ts
+@Injectable()
+export class LoggerMiddleware implements NestMiddleware {
+    use(req: Request, res: Response, next: NextFunction) {
+        console.log(`${req.method} ${req.url}`);
+        next();
+    }
+}
+```
+
+---
+
+**Q: Чем Guard отличается от Middleware?**
+
+| | Middleware | Guard |
+|---|---|---|
+| Когда | Самый первый в pipeline | После Middleware |
+| Контекст | Только `req`/`res` | `ExecutionContext` — знает какой handler вызовется |
+| Назначение | Общая обработка (логи, CORS) | Авторизация, проверка прав |
+| Доступ к метаданным | Нет | Да (`Reflector` → `@Roles()`, `@Public()`) |
+
+Guard знает о NestJS-контексте (контроллер, метод, декораторы). Middleware — нет.
 
 ---
 
@@ -114,6 +169,19 @@ Guard определяет **может ли** запрос быть обраб�
 - Обработка ошибок
 
 Работает через RxJS Observable — можно использовать `map`, `tap`, `catchError`.
+
+---
+
+**Q: Чем Pipe отличается от Interceptor?**
+
+| | Pipe | Interceptor |
+|---|---|---|
+| Когда | Перед handler'ом | До и после handler'а |
+| Что делает | Валидация и трансформация **входных данных** | Трансформация запроса/ответа, side-effects |
+| Доступ к ответу | Нет | Да (через Observable) |
+| Примеры | `ValidationPipe`, `ParseIntPipe` | Логирование, кэширование, оборачивание ответа |
+
+Pipe — про **данные на входе**. Interceptor — про **поведение вокруг** handler'а.
 
 ---
 
@@ -136,6 +204,14 @@ class CreateUserDto {
     @IsInt() @Min(0) age: number;
 }
 ```
+
+---
+
+**Q: Зачем DTO, если TypeScript уже проверяет типы?**
+
+TypeScript проверяет типы **только на этапе компиляции** — в рантайме его нет. Когда приходит HTTP-запрос, `body` — это обычный JSON-объект, TypeScript ничего не проверяет.
+
+DTO + `class-validator` + `ValidationPipe` — это **runtime-валидация**: проверяет что пришедшие данные реально соответствуют ожидаемой форме. Без этого можно отправить `{ age: "not a number" }` и TypeScript не спасёт.
 
 ---
 
