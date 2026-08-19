@@ -153,6 +153,53 @@ class User extends BaseEntity implements Serializable {
 
 ---
 
+## keyof и индексный доступ
+
+`keyof` — оператор, возвращающий union всех ключей типа.
+
+```ts
+interface User {
+    id: number;
+    name: string;
+    email: string;
+}
+
+type UserKeys = keyof User;  // "id" | "name" | "email"
+```
+
+`T[K]` — индексный доступ к типу: получает тип значения по ключу.
+
+```ts
+type NameType = User["name"];        // string
+type IdOrName = User["id" | "name"]; // number | string
+```
+
+### `K extends keyof T` — ограничение ключа
+
+`extends keyof T` означает: K может быть **только одним из ключей T**. Компилятор не даст передать несуществующий ключ.
+
+```ts
+// K ограничен ключами T — нельзя передать произвольную строку
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+    return obj[key];
+}
+
+const user: User = { id: 1, name: "Alice", email: "a@b.com" };
+
+getProperty(user, "name");    // OK → string
+getProperty(user, "id");      // OK → number
+getProperty(user, "foo");     // Ошибка! — "foo" не является ключом User
+
+// Без extends keyof — потеря безопасности:
+function unsafeGet(obj: any, key: string): any {   // any everywhere
+    return obj[key];
+}
+```
+
+Этот паттерн используется повсюду: `Pick`, `Omit`, `Record`, типизация event map, builder-паттерны.
+
+---
+
 ## Generics (Обобщённые типы)
 
 ```ts
@@ -169,7 +216,7 @@ interface Repository<T> {
     save(entity: T): Promise<T>;
 }
 
-// Ограничения
+// Ограничения — extends keyof для безопасного доступа к ключам
 function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
     return obj[key];
 }
