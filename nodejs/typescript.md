@@ -37,6 +37,59 @@ let user: { name: string; age: number } = { name: "Alice", age: 30 };
 
 ---
 
+## structural typing / duck typing в TS
+
+Structural typing — тип определяется своей структурой, а не именем.
+
+Например:
+
+```ts
+type User = {
+  id: number;
+  name: string;
+};
+
+
+const x = {
+  id: 1,
+  name: 'Alex',
+  age: 30,
+};
+
+
+const user: User = x; // OK
+```
+
+x не обязан быть объявлен как User. Его структура совместима с User.
+
+---
+
+## Excess property check (Проверка избыточных свойств) в TS 
+
+Это специальный этап проверки объектных литералов (просто {} с ключами и значениями для создания объекта), который срабатывает при их присваивании и создании, он отличается от базовых правил структурной типизации. TypeScript проверяет их строго и лишние свойства вызывают ошибку. Ошибка исчезает, если сохранить объект в промежуточную переменную перед присваиванием, так как сработает 
+
+```ts
+function printUser(user: User) {}
+
+// ошибка
+printUser({
+  id: 1,
+  name: 'Alex',
+  age: 30,
+});
+
+// нет ошибки
+const obj = {
+  id: 1,
+  name: 'Alex',
+  age: 30,
+};
+
+printUser(obj);
+```
+
+---
+
 ## any vs unknown
 
 | | `any` | `unknown` |
