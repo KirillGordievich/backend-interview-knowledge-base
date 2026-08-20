@@ -597,3 +597,71 @@ make_it_quack(Person())  # 'I am quacking like a duck!'
 ```
 
 Python предпочитает утиную типизацию явным проверкам `isinstance`. Формализация — через `Protocol` из `typing` (см. [typing.md](typing.md)).
+
+---
+
+## property
+
+`property` — встроенный дескриптор для управления доступом к атрибуту:
+
+```python
+class Circle:
+    def __init__(self, radius):
+        self._radius = radius
+
+    @property
+    def radius(self):
+        return self._radius
+
+    @radius.setter
+    def radius(self, value):
+        if value < 0:
+            raise ValueError
+        self._radius = value
+```
+
+---
+
+## classmethod vs staticmethod
+
+- `@classmethod` — получает класс (`cls`) первым аргументом, может создавать экземпляры и обращаться к атрибутам класса
+- `@staticmethod` — не получает ни `self`, ни `cls`, обычная функция в пространстве имён класса
+
+---
+
+## __eq__ и __hash__
+
+Если переопределяешь `__eq__`, Python автоматически ставит `__hash__ = None` (объект становится unhashable). Если нужен hashable объект — переопредели оба.
+
+**Правило:** `a == b` → `hash(a) == hash(b)`.
+
+---
+
+## dataclass
+
+Декоратор `@dataclass` автоматически генерирует `__init__`, `__repr__`, `__eq__` и другие методы. Убирает boilerplate для классов-контейнеров данных (DTO, конфиги, модели):
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class Point:
+    x: float
+    y: float
+
+p = Point(1.0, 2.0)  # автоматический __init__
+```
+
+Параметры: `frozen=True` (immutable), `order=True` (сравнение), `slots=True` (Python 3.10+).
+
+---
+
+## dataclass vs NamedTuple
+
+| | `dataclass` | `NamedTuple` |
+|---|---|---|
+| Изменяемость | mutable (по умолчанию) | immutable |
+| Тип | class | tuple |
+| Hashable | нет (если не `frozen=True`) | да |
+| Распаковка | нет | да |
+| default_factory | да | нет |

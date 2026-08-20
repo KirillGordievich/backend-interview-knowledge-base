@@ -44,6 +44,27 @@ def func(pos1, pos2, /, normal, *, kw_only, **kwargs):
 #                              ^--- только именованные
 ```
 
+Полный порядок:
+1. Positional-only (до `/`)
+2. Обычные (positional or keyword)
+3. `*args` — сборщик позиционных
+4. Keyword-only (после `*` или `*args`)
+5. `**kwargs` — сборщик именованных
+
+### Positional-only и keyword-only параметры
+
+- **Positional-only** (до `/`) — можно передать только по позиции, не по имени
+- **Keyword-only** (после `*`) — можно передать только по имени
+
+```python
+def f(a, /, b, *, c):
+    pass
+
+f(1, 2, c=3)   # OK
+f(a=1, 2, c=3) # Error — a positional-only
+f(1, 2, 3)     # Error — c keyword-only
+```
+
 ---
 
 ## Изменяемые объекты как параметры по умолчанию
@@ -183,6 +204,20 @@ c2()  # 11  ← независимое состояние
 ```
 
 Замыкания — основа декораторов и фабрик функций. Для изменения переменной внешней функции нужен `nonlocal`.
+
+### nonlocal
+
+`nonlocal` позволяет изменять переменную из внешней (но не глобальной) области видимости. Без `nonlocal` присваивание создаст локальную переменную вместо изменения внешней.
+
+```python
+def outer():
+    x = 0
+    def inner():
+        nonlocal x  # без этого — UnboundLocalError
+        x += 1
+        return x
+    return inner
+```
 
 ---
 
@@ -356,6 +391,11 @@ fibonacci.cache_clear()  # очистить кэш
 def fib(n): ...
 ```
 
+**`lru_cache` vs `cache`:** `@cache` (Python 3.9+) — это `lru_cache(maxsize=None)` — кэш без ограничения размера. `lru_cache` с `maxsize` использует LRU-стратегию и вытесняет давно неиспользуемые записи при достижении лимита.
+
+```python
+```
+
 ### functools.partial
 
 Частичное применение функции — создаёт новую функцию с предзаполненными аргументами.
@@ -376,3 +416,29 @@ cube(3)    # 27
 double = functools.partial(int.__mul__, 2)
 list(map(double, [1, 2, 3]))  # [2, 4, 6]
 ```
+
+---
+
+## LEGB — правило поиска переменных
+
+Порядок, в котором Python ищет имена:
+
+- **L**ocal — локальная область текущей функции
+- **E**nclosing — области внешних функций (замыкание)
+- **G**lobal — уровень модуля
+- **B**uilt-in — встроенные имена (`print`, `len`, `range`)
+
+```python
+x = 'global'
+
+def outer():
+    x = 'enclosing'
+    def inner():
+        # x = 'local'  # если раскомментировать — найдёт local
+        print(x)       # найдёт 'enclosing' (E)
+    inner()
+
+outer()  # enclosing
+```
+
+Для записи в global из функции используется `global`, для записи в enclosing — `nonlocal`.

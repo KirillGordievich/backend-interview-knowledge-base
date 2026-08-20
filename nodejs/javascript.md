@@ -19,7 +19,18 @@ typeof Symbol()    // "symbol"
 typeof 42n         // "bigint"
 ```
 
-**Проверка массива:** `Array.isArray([])` → `true`
+**Как проверить что объект является массивом:** Встроенный метод `Array.isArray()`. Возвращает `true` для массивов и `false` для остальных данных. Оператор `typeof` не подходит — для массивов он возвращает `"object"`.
+
+**Подвохи `typeof`:**
+
+```js
+typeof null          // "object" — баг языка с 1995 года, не исправлен
+typeof NaN           // "number" — NaN формально число
+typeof []            // "object" — массив это объект
+typeof function(){}  // "function" — единственный объект с отдельным typeof
+```
+
+Для точной проверки типов: `Array.isArray()`, `instanceof`, `Object.prototype.toString.call()`.
 
 ---
 
@@ -147,6 +158,25 @@ for (let i = 0; i < 3; i++) {
 
 ---
 
+## Каррирование (Currying)
+
+Трансформация функции с несколькими аргументами в цепочку функций с одним аргументом: `f(a, b, c)` → `f(a)(b)(c)`.
+
+```js
+const multiply = (a) => (b) => a * b;
+const double = multiply(2);
+double(5); // 10
+
+// Практическое применение — создание специализированных функций
+const log = (level) => (message) => console.log(`[${level}] ${message}`);
+const error = log("ERROR");
+error("disk full"); // [ERROR] disk full
+```
+
+Partial application — похожий приём, но фиксируется часть аргументов: `const addTax = add.bind(null, 0.2)`.
+
+---
+
 ## this
 
 Значение `this` зависит от **контекста вызова**, а не от места объявления.
@@ -162,6 +192,15 @@ const obj = {
     }
 };
 
+// Частые грабли — потеря this при передаче метода как callback:
+const fn = obj.greet;
+fn();                          // undefined — this потерян
+setTimeout(obj.greet, 100);    // undefined — this потерян
+
+// Решения:
+setTimeout(() => obj.greet(), 100);           // обёртка в arrow
+setTimeout(obj.greet.bind(obj), 100);         // bind
+
 // call/apply/bind — явная установка this
 function greet(greeting) {
     return `${greeting}, ${this.name}`;
@@ -172,12 +211,26 @@ const bound = greet.bind({ name: "Alice" });
 bound("Hi");                                // "Hi, Alice"
 ```
 
-**Правила this (по приоритету):**
-1. `new` — новый объект
-2. `bind/call/apply` — явный контекст
-3. Метод объекта — сам объект
-4. Обычный вызов — `undefined` (strict) или `window` (non-strict)
-5. Arrow — лексический `this`
+**Arrow function и `this`:**
+
+Arrow function **не имеет своего `this`** — берёт из окружения, где была создана.
+
+```js
+const obj = {
+    name: "Alice",
+    // Обычная — this = obj при вызове obj.greet()
+    greet() { setTimeout(function() { console.log(this.name); }, 100); },
+    // Arrow — this = obj, потому что arrow создана внутри greetFixed(), где this = obj
+    greetFixed() { setTimeout(() => { console.log(this.name); }, 100); },
+    // Arrow как метод — this = внешний scope (module/global), НЕ obj
+    broken: () => { console.log(this.name); }
+};
+obj.greet();      // undefined — обычная функция в setTimeout теряет this
+obj.greetFixed(); // "Alice" — arrow захватила this из greetFixed()
+obj.broken();     // undefined — arrow взяла this из внешнего scope
+```
+
+Вывод: arrow function **хороша для callback'ов** (сохраняет `this`), но **не подходит как метод объекта**.
 
 ---
 
@@ -195,6 +248,23 @@ copy1.b.c = 99;      // obj.b.c тоже изменится!
 // Глубокая (deep) копия
 const deep = structuredClone(obj);   // современный способ
 const deep2 = JSON.parse(JSON.stringify(obj));  // не работает с функциями, Date, undefined
+```
+
+---
+
+## Object.freeze / seal / preventExtensions
+
+| | Добавить свойства | Удалить свойства | Изменить значения |
+|---|---|---|---|
+| `preventExtensions` | Нет | Да | Да |
+| `seal` | Нет | Нет | Да |
+| `freeze` | Нет | Нет | Нет |
+
+Все три — **shallow**: вложенные объекты не замораживаются.
+
+```js
+const obj = Object.freeze({ nested: { x: 1 } });
+obj.nested.x = 2; // работает! freeze неглубокий
 ```
 
 ---
@@ -309,6 +379,10 @@ console.log("end");
 
 ## Promises
 
+Три состояния: `pending` → `fulfilled` (resolve) или `rejected` (reject). После перехода из `pending` — состояние **неизменяемо** (settled). Повторный вызов `resolve`/`reject` игнорируется.
+
+Напрямую узнать состояние **нельзя** — нет `.state` или `.status`. Можно только подписаться через `.then`/`.catch`.
+
 ```js
 // Создание
 const p = new Promise((resolve, reject) => {
@@ -364,6 +438,50 @@ for (const id of ids) {
 // Параллельно через map
 const users = await Promise.all(ids.map(id => fetchUser(id)));
 ```
+
+---
+
+## Обработка ошибок
+
+```js
+try {
+    const data = JSON.parse(input);
+} catch (err) {
+    if (err instanceof SyntaxError) {
+        console.error("Invalid JSON:", err.message);
+    } else {
+        throw err;  // перебросить неизвестную ошибку
+    }
+} finally {
+    cleanup();  // выполнится в любом случае (даже при return в try/catch)
+}
+```
+
+**Ошибки в промисах:**
+- `.catch()` в цепочке: `fetch(url).then(handle).catch(err => ...)`
+- `try/catch` с `async/await` — предпочтительный способ
+- `Promise.allSettled()` — не прерывается при ошибках
+
+Необработанный rejected Promise → `unhandledRejection` → крэш в Node.js.
+
+---
+
+## Modules (ESM vs CommonJS)
+
+```js
+// ESM — стандарт языка
+import { foo } from "./module.js";
+export const bar = 42;
+
+// CommonJS — legacy формат Node.js
+const foo = require("./module");
+module.exports = { bar: 42 };
+```
+
+- **ESM** — статические импорты, анализируются до выполнения, поддерживают tree-shaking, top-level `await`
+- **CommonJS** — динамические, выполняются в runtime, синхронные
+
+**Tree-shaking** — удаление неиспользуемого кода при сборке (Webpack, Rollup). Работает только с ESM: `import`/`export` статические → бандлер знает какие экспорты используются. `require()` динамический → бандлер не может определить что нужно.
 
 ---
 
@@ -492,6 +610,42 @@ function process(obj) {
 
 // Применение: хранение метаданных без утечки памяти
 // Нельзя итерировать — нет .size, нет forEach
+
+// WeakSet — аналогично, но множество объектов
+const visited = new WeakSet();
+visited.add(node);       // пометить как посещённый
+visited.has(node);       // проверить
+// Применение: трекинг обработанных DOM-нод, защита от циклов
+```
+
+**Map vs WeakMap — ключевые отличия:**
+
+| | Map | WeakMap |
+|---|---|---|
+| Ключи | любые значения | только объекты / символы |
+| GC | ключи удерживаются (strong ref) | ключи **не удерживаются** (weak ref) → GC собирает |
+| Итерация | `for..of`, `.keys()`, `.entries()` | **нельзя** итерировать |
+| `.size` | есть | нет |
+| Утечки памяти | возможны, если забыть `.delete()` | невозможны — GC сам чистит |
+
+```js
+// Проблема Map — утечка памяти:
+const map = new Map();
+(function() {
+    const obj = { heavy: new Array(1_000_000) };
+    map.set(obj, "data");
+    // obj выходит из scope, но Map держит strong ref → НЕ собирается GC
+})();
+// map.size === 1, объект жив, память занята
+
+// Решение WeakMap — автоочистка:
+const weak = new WeakMap();
+(function() {
+    const obj = { heavy: new Array(1_000_000) };
+    weak.set(obj, "data");
+    // obj выходит из scope → WeakMap НЕ держит → GC собирает
+})();
+// объект удалён, память свободна
 ```
 
 ---
@@ -647,4 +801,49 @@ function* concat(...iterables) {
 // Генераторы vs async/await:
 // async/await — синтаксический сахар над генераторами + промисами
 // Генераторы — ленивые вычисления, бесконечные последовательности
+```
+
+---
+
+## Задачи "Что выведет?"
+
+```js
+console.log(1);
+setTimeout(() => console.log(2), 0);
+Promise.resolve().then(() => console.log(3));
+console.log(4);
+// 1, 4, 3, 2 — синхронный код → микрозадача Promise → макрозадача setTimeout
+```
+
+```js
+const a = {};
+const b = { key: "b" };
+const c = { key: "c" };
+a[b] = 123;
+a[c] = 456;
+console.log(a[b]);
+// 456 — объекты как ключи приводятся к "[object Object]", второй перезаписал первый
+```
+
+```js
+let x = 1;
+const fn = () => console.log(x);
+{
+    let x = 2;
+    fn();
+}
+// 1 — arrow function замкнулась на x из scope где создана, блочный let x = 2 — другая переменная
+```
+
+```js
+console.log(typeof typeof 1);
+// "string" — typeof 1 → "number" (строка), typeof "number" → "string"
+```
+
+```js
+const arr = [1, 2, 3];
+arr[10] = 11;
+console.log(arr.length);           // 11
+console.log(arr.filter(Boolean).length);  // 4
+// arr[10] расширяет массив до длины 11, индексы 3–9 — пустые слоты. filter пропускает их.
 ```

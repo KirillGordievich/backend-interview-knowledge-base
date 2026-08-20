@@ -6,6 +6,20 @@ NestJS — фреймворк для Node.js на TypeScript. Вдохновлё
 
 **Стек:** NestJS + TypeScript + Express (или Fastify) + TypeORM / Prisma
 
+**NestJS vs Express:** Express — минималистичный, без структуры. NestJS даёт: организацию кода (модули, контроллеры, сервисы), встроенную валидацию, Guards/Interceptors/Pipes, поддержку микросервисов.
+
+**Слоистая архитектура** — каждый слой отвечает за своё:
+
+```
+Controller       — принимает HTTP-запрос, извлекает параметры, возвращает ответ
+    ↓
+Service          — бизнес-логика, оркестрация
+    ↓
+Repository/ORM   — работа с БД (TypeORM, Prisma, MikroORM)
+```
+
+Controller не знает про БД. Service не знает про HTTP. Каждый слой зависит только от слоя ниже.
+
 ---
 
 ## Архитектура: модули
@@ -149,6 +163,8 @@ export class UsersService {
 
 NestJS использует IoC-контейнер: ты объявляешь зависимости через конструктор, фреймворк создаёт и внедряет их.
 
+**Зачем DI, а не `new` напрямую?** Без DI — `new UsersService(new Repository(new Database()))` в каждом месте. Проблемы: нельзя подменить зависимость на мок (тестирование), изменил конструктор → правь везде (связность), кто управляет lifecycle? DI решает всё это.
+
 ```ts
 // Классический DI через конструктор
 @Injectable()
@@ -183,6 +199,8 @@ constructor(@Inject('CONFIG') private config: AppConfig) {}
 
 DTO — класс, описывающий форму входных данных. Используется с `class-validator` для валидации.
 
+**Зачем DTO, если TypeScript уже проверяет типы?** TypeScript проверяет типы **только при компиляции** — в рантайме его нет. HTTP-запрос — это обычный JSON, TypeScript ничего не проверит. DTO + `class-validator` + `ValidationPipe` — это **runtime-валидация**.
+
 ```ts
 import { IsString, IsEmail, IsInt, Min, Max, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -213,7 +231,24 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 ## Pipes (Validation & Transformation)
 
-Pipe обрабатывает входные данные перед хендлером.
+Pipe обрабатывает входные данные перед хендлером (валидация и трансформация).
+
+**Pipe vs Interceptor:**
+
+| | Pipe | Interceptor |
+|---|---|---|
+| Когда | Перед handler'ом | До и после handler'а |
+| Что делает | Валидация и трансформация **входных данных** | Трансформация запроса/ответа, side-effects |
+| Доступ к ответу | Нет | Да (через Observable) |
+
+**Guard vs Middleware:**
+
+| | Middleware | Guard |
+|---|---|---|
+| Когда | Самый первый в pipeline | После Middleware |
+| Контекст | Только `req`/`res` | `ExecutionContext` — знает какой handler вызовется |
+| Назначение | Общая обработка (логи, CORS) | Авторизация, проверка прав |
+| Доступ к метаданным | Нет | Да (`Reflector` → `@Roles()`, `@Public()`) |
 
 ```ts
 // Глобальный ValidationPipe — валидирует все DTO

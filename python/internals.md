@@ -488,4 +488,86 @@ type(42)     # <class 'int'>
 MyClass = type('MyClass', (object,), {'x': 42, 'hello': lambda self: 'Hi'})
 ```
 
+```python
+class Foo: pass
+type(Foo)              # <class 'type'>
+type(type)             # <class 'type'> — type является своим же экземпляром
+isinstance(Foo, type)  # True
+```
+
 Подробнее о метаклассах — см. [oop.md](oop.md).
+
+---
+
+## `__del__` — финализатор
+
+Вызывается когда объект уничтожается. **Не рекомендуется к использованию:**
+- Неопределённое время вызова (зависит от GC)
+- Может задержать сборку циклических ссылок (GC не может собрать объекты с `__del__`, образующие цикл, до Python 3.4)
+- Исключения внутри `__del__` игнорируются
+
+```python
+class Resource:
+    def __del__(self):
+        print("удаляется")  # может быть вызван в любой момент
+
+# Правильная альтернатива — контекстный менеджер:
+class Resource:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        self.close()  # детерминированное освобождение ресурса
+```
+
+Используй `with` / контекстные менеджеры вместо `__del__`.
+
+---
+
+## `__sizeof__` и `sys.getsizeof`
+
+`sys.getsizeof(obj)` — размер объекта в байтах **без учёта объектов, на которые он ссылается**.
+
+Вызывает `obj.__sizeof__()` и добавляет overhead GC-заголовка.
+
+```python
+import sys
+
+sys.getsizeof([1, 2, 3])      # 88 — размер list-объекта, не элементов
+sys.getsizeof("hello")        # 54 — PyUnicodeObject + символы
+sys.getsizeof({"a": 1})       # 232 — PyDictObject
+
+# Для подсчёта "глубокого" размера нужна рекурсия:
+def deep_size(obj, seen=None):
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    size = sys.getsizeof(obj)
+    if isinstance(obj, dict):
+        size += sum(deep_size(k, seen) + deep_size(v, seen) for k, v in obj.items())
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes)):
+        size += sum(deep_size(i, seen) for i in obj)
+    return size
+```
+
+---
+
+## set vs list: почему `in` быстрее для set
+
+`set` использует хеш-таблицу: проверка `x in s` — O(1) в среднем (вычислить хеш, проверить слот).
+
+`list` выполняет линейный перебор: `x in lst` — O(n).
+
+```python
+import timeit
+
+data_list = list(range(100_000))
+data_set = set(range(100_000))
+
+timeit.timeit(lambda: 99_999 in data_list, number=1000)  # ~ms
+timeit.timeit(lambda: 99_999 in data_set,  number=1000)  # ~мкс
+```
+
+Для частых проверок принадлежности всегда используй `set`. `frozenset` — то же, но immutable.

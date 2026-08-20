@@ -74,6 +74,10 @@ finally:
 
 **Правило:** обработчики расставлять от частного к общему — более специфичные `except` сверху, иначе они никогда не сработают.
 
+### finally: когда выполняется
+
+`finally` выполняется всегда — даже если в `try` или `except` есть `return`. Единственное исключение: `os._exit()` или аварийное завершение процесса.
+
 ### try / finally без except
 
 Используется для гарантированного освобождения ресурсов без перехвата ошибок:
@@ -126,9 +130,27 @@ except ConnectionError as e:
 
 ---
 
+## Перехват нескольких типов исключений
+
+```python
+except (ValueError, TypeError, KeyError) as e:
+    handle(e)
+```
+
+Передаётся кортеж типов — Python проверяет каждый по очереди. Предпочтительнее отдельных `except`-блоков, если логика обработки одинакова.
+
+---
+
 ## Цепочки исключений
 
-В Python 3 при исключении внутри `except` исходное сохраняется в `__context__`. Явное связывание через `from`:
+В Python 3 при исключении внутри `except` исходное сохраняется в `__context__` (неявная цепочка). Явное связывание через `from` сохраняет в `__cause__` и показывает "caused by" в traceback.
+
+Разница между `raise` и `raise from`:
+- `raise NewError()` — implicit chaining: оригинальное исключение в `__context__`
+- `raise NewError() from original` — explicit chaining: оригинальное в `__cause__`, traceback показывает "caused by"
+- `raise NewError() from None` — подавляет цепочку
+
+Примеры:
 
 ```python
 # Неявная цепочка (автоматически)
@@ -152,6 +174,26 @@ except Exception:
     raise NewError('обёрнутая ошибка') from None
 # Только NewError, исходное скрыто
 ```
+
+---
+
+## ExceptionGroup (Python 3.11+)
+
+Группа исключений — позволяет обрабатывать несколько одновременных ошибок (например, из `asyncio.TaskGroup`). Синтаксис `except*` ловит подгруппу по типу:
+
+```python
+try:
+    async with asyncio.TaskGroup() as tg:
+        tg.create_task(fail1())
+        tg.create_task(fail2())
+except* ValueError as eg:    # eg.exceptions — список ValueError
+    for e in eg.exceptions:
+        print(e)
+except* TypeError as eg:
+    ...
+```
+
+`ExceptionGroup` можно создавать вручную: `ExceptionGroup('msg', [err1, err2])`.
 
 ---
 

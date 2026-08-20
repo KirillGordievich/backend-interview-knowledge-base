@@ -89,6 +89,8 @@ console.log("6 — sync");
 
 **Практическое правило:** `process.nextTick` — рекурсивный вызов может заморозить event loop. Предпочитай `setImmediate` для разбивки тяжёлых задач.
 
+**Event Loop: Node.js vs браузер** — в браузере упрощённая модель (microtask queue + macrotask queue). В Node.js — 6 фаз с разным приоритетом. Есть `process.nextTick` и `setImmediate` (нет в браузере). Нет Web APIs (setTimeout реализован через libuv).
+
 ---
 
 ## CommonJS vs ESM
@@ -138,6 +140,8 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
 ```
+
+**Как включить ESM:** расширение `.mjs` для файлов, или `"type": "module"` в `package.json` (все `.js` станут ESM).
 
 ---
 
@@ -222,6 +226,8 @@ const upperCase = new Transform({
 
 process.stdin.pipe(upperCase).pipe(process.stdout);
 ```
+
+**`pipe` vs `pipeline`:** `stream.pipe(dest)` — простой, но не обрабатывает ошибки корректно (утечки). `pipeline(src, transform, dest)` из `stream/promises` — корректно обрабатывает ошибки и cleanup. Всегда используй `pipeline`.
 
 **Типы streams:**
 - `Readable` — источник данных (fs, HTTP request, stdin)
@@ -318,6 +324,14 @@ if (isMainThread) {
 | Память | Не разделяется | Общая через SharedArrayBuffer |
 | Коммуникация | IPC (медленно) | `postMessage` + SharedArrayBuffer |
 | Когда | HTTP сервер (I/O) | CPU-heavy (парсинг, crypto, ML) |
+
+**Масштабирование Node.js:**
+1. **Cluster** — несколько процессов на одном сервере, OS распределяет запросы
+2. **PM2** — менеджер процессов (cluster mode + мониторинг + рестарт)
+3. **Горизонтальное** — load balancer (nginx) + несколько инстансов/контейнеров
+4. **Worker Threads** — для CPU-bound задач в отдельных потоках
+
+**"Node.js однопоточный — как обрабатывает тысячи запросов?"** — Event loop + неблокирующий I/O. Пока один запрос ждёт ответа от БД (I/O), Node обрабатывает другие. Потоки не блокируются — callback'и/промисы ставятся в очередь. Для CPU-bound задач — Worker Threads или отдельный сервис.
 
 ---
 

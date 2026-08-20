@@ -147,3 +147,76 @@ with ProcessPoolExecutor(max_workers=4) as executor:
 with ThreadPoolExecutor(max_workers=20) as executor:
     results = list(executor.map(io_task, urls))
 ```
+
+---
+
+## Race Condition и блокировки
+
+**Race condition** — ситуация когда результат зависит от порядка выполнения потоков.
+
+Защита: `threading.Lock` (мьютекс), `threading.RLock` (реентерабельный), `threading.Semaphore`, `queue.Queue` (потокобезопасная очередь).
+
+```python
+lock = threading.Lock()
+with lock:
+    shared_counter += 1  # атомарно
+```
+
+### Lock vs RLock
+
+- `Lock` — можно захватить один раз, повторный захват из того же потока вызовет deadlock
+- `RLock` (reentrant lock) — можно захватить несколько раз из одного потока, нужно столько же раз освободить
+
+### Deadlock
+
+Ситуация когда два или более потоков ждут друг друга и ни один не может продолжить. Классика: поток A захватил Lock 1 и ждёт Lock 2, поток B захватил Lock 2 и ждёт Lock 1.
+
+Решения: захватывать блокировки в одном порядке, использовать `Lock.acquire(timeout=...)`, избегать вложенных блокировок.
+
+---
+
+## threading vs asyncio
+
+- **asyncio** — тысячи I/O-операций (HTTP запросы, WebSocket), одного потока достаточно, async/await экосистема
+- **threading** — десятки I/O-операций, интеграция с синхронным кодом, простые фоновые задачи
+- **multiprocessing** — CPU-bound задачи (вычисления, обработка данных)
+
+---
+
+## Future
+
+Объект из `concurrent.futures`, представляющий результат асинхронной операции. Можно проверить статус (`.done()`), получить результат (`.result()` — блокирующий), добавить callback (`.add_done_callback()`). Создаётся через `executor.submit()`.
+
+```python
+with ThreadPoolExecutor(max_workers=10) as pool:
+    futures = [pool.submit(fetch, url) for url in urls]
+    for f in as_completed(futures):
+        result = f.result()
+```
+
+---
+
+## Передача данных между процессами
+
+- `Queue` — потокобезопасная очередь для передачи данных
+- `Pipe` — двусторонний канал (быстрее Queue для двух процессов)
+- `Manager` — shared state через прокси-объекты (медленно, удобно)
+- `Value` / `Array` — shared memory для простых типов
+
+---
+
+## Daemon потоки и процессы
+
+Фоновый поток/процесс, который автоматически завершается при выходе основного потока/процесса. Используется для фоновых задач (мониторинг, логирование).
+
+```python
+t = threading.Thread(target=worker)
+t.daemon = True  # установить до start()
+t.start()
+```
+
+---
+
+## Потокобезопасность встроенных типов
+
+В CPython `list.append()` безопасен благодаря GIL — один `append` это одна байткод-операция. Но полагаться на это не стоит: это деталь реализации CPython, не гарантия языка. Для надёжности используй `queue.Queue` или `Lock`.

@@ -115,6 +115,20 @@ type Point = { x: number; y: number };
 type AdminUser = User & { role: string };   // intersection
 ```
 
+**Union vs Intersection:**
+- **Union** (`A | B`) — значение типа A **или** B. Доступны только общие поля.
+- **Intersection** (`A & B`) — значение удовлетворяет **оба** типа. Объединяет все поля.
+
+```ts
+// Union — "одно из"
+type Result = Success | Error;
+
+// Intersection — "всё вместе"
+type Admin = User & { role: "admin"; permissions: string[] };
+```
+
+Частая ошибка: union на объектах — не "объединение полей", а "один из объектов".
+
 **Когда что:**
 - `interface` — когда описываешь форму объекта/класса, особенно в public API
 - `type` — когда нужны union-типы, условные типы, mapped types
@@ -216,7 +230,14 @@ interface Repository<T> {
     save(entity: T): Promise<T>;
 }
 
-// Ограничения — extends keyof для безопасного доступа к ключам
+// Ограничения (constraints) — T должен быть совместим с указанным типом
+function logLength<T extends { length: number }>(x: T): void {
+    console.log(x.length);
+}
+logLength("hello");  // OK — у string есть length
+logLength(42);       // Ошибка! — у number нет length
+
+// extends keyof для безопасного доступа к ключам
 function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
     return obj[key];
 }
@@ -316,6 +337,8 @@ const enum Color { Red, Green, Blue }
 // Альтернатива enum — union of string literals (часто предпочтительнее)
 type Direction = "up" | "down" | "left" | "right";
 ```
+
+**`enum` vs union:** union предпочтительнее — не генерирует JS код, проще, tree-shaking работает. `enum` — когда нужен reverse mapping или runtime объект.
 
 ---
 
@@ -430,4 +453,70 @@ class UserService {
         }
     }
 }
+```
+
+---
+
+## Function Overloads
+
+Несколько сигнатур для одной функции — разные типы входа дают разные типы выхода:
+
+```ts
+function parse(input: string): object;
+function parse(input: Buffer): object;
+function parse(input: string, asArray: true): object[];
+
+// Реализация (одна, обрабатывает все случаи)
+function parse(input: string | Buffer, asArray?: boolean): object | object[] {
+    const data = typeof input === "string" ? JSON.parse(input) : JSON.parse(input.toString());
+    return asArray ? [data] : data;
+}
+```
+
+Если можно обойтись union или generics — предпочитай их (проще).
+
+---
+
+## Практические задачи типизации
+
+```ts
+// API-ответ с пагинацией
+interface PaginatedResponse<T> {
+    data: T[];
+    meta: { total: number; page: number; perPage: number; lastPage: number };
+}
+async function fetchUsers(): Promise<PaginatedResponse<User>> { ... }
+
+// Типизированные события
+interface EventMap {
+    "user:created": { id: number; email: string };
+    "user:deleted": { id: number };
+}
+function on<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void): void { ... }
+
+// DeepPartial — рекурсивный Partial
+type DeepPartial<T> = {
+    [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+};
+
+// RequiredExcept — всё обязательно, кроме указанных полей
+type RequiredExcept<T, K extends keyof T> = Required<Omit<T, K>> & Partial<Pick<T, K>>;
+
+// Discriminated union
+type Message =
+    | { type: "text"; content: string }
+    | { type: "image"; url: string; width: number }
+    | { type: "file"; filename: string; size: number };
+
+function render(msg: Message): string {
+    switch (msg.type) {
+        case "text":  return msg.content;
+        case "image": return `<img src="${msg.url}" />`;
+        case "file":  return `${msg.filename} (${msg.size}b)`;
+        default:
+            const _: never = msg;  // exhaustive check
+            throw new Error(`Unknown type`);
+    }
+}
+```
 ```
