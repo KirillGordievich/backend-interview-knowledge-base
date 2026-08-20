@@ -90,6 +90,84 @@ printUser(obj);
 
 ---
 
+## Control flow analysis / type narrowing
+
+TypeScript анализирует поток выполнения программы и на основании условий, return, throw, typeof, instanceof, проверок на null и т. д. может сужать тип переменной.
+
+Например:
+
+```ts
+function foo(value: string | number) {
+  if (typeof value === 'string') {
+    // string
+    value.toUpperCase();
+  } else {
+    // number
+    value.toFixed(2);
+  }
+}
+```
+
+До if:
+
+```ts
+string | number
+```
+
+После проверки в первой ветке:
+
+```ts
+string
+```
+
+Во второй:
+
+```ts
+number
+```
+
+То есть TypeScript не просто смотрит на объявленный тип, а отслеживает, какие значения реально могут оказаться в конкретной точке выполнения.
+
+---
+
+## Type predicates
+
+
+```ts
+type Success = {
+  status: 'success';
+  data: string;
+};
+
+type ErrorResponse = {
+  status: 'error';
+  message: string;
+};
+
+type Response = Success | ErrorResponse;
+
+// Функция вернёт boolean, но TS не понимает, что это должно сужать тип
+function isSuccess(response: Response): boolean {
+  return response.status === 'success';
+}
+
+// Функция вернёт true если ответ success, но TS понимает, что это должно сужать тип
+function isSuccess(response: Response): response is Success {
+  return response.status === 'success';
+}
+
+function handleResponse(response: Response) {
+  if (response.status === 'success') {
+    console.log(response.data);
+  } else {
+    console.log(response.message);
+  }
+}
+```
+
+
+---
+
 ## any vs unknown
 
 | | `any` | `unknown` |
