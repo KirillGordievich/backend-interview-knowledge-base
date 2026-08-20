@@ -453,56 +453,6 @@ let x = 1, y = 2;
 
 ---
 
-## Как работает Event Loop
-
-JavaScript — однопоточный язык, и весь код выполняется в одном потоке. Асинхронность реализуется через Event Loop — механизм, который координирует выполнение синхронного кода, колбэков и очередей задач.
-
-Event Loop работает с несколькими компонентами:
-
-- **Call Stack** — стек текущего выполняемого кода (LIFO). Когда функция вызвана — она в стеке, завершилась — удалена.
-- **Web APIs / Node APIs** — среда выполнения обрабатывает асинхронные операции (таймеры, HTTP, файлы) и по завершении кладёт колбэк в очередь.
-- **Microtask Queue** — очередь для `Promise.then`, `queueMicrotask`. Имеет **приоритет** — опустошается полностью перед каждой макрозадачей.
-- **Macrotask Queue** — очередь для `setTimeout`, `setInterval`, I/O, `setImmediate` (Node).
-
-**Порядок выполнения:**
-1. Выполнить весь синхронный код (Call Stack)
-2. Выполнить **все** микрозадачи (Microtask Queue) — до полного опустошения
-3. Взять **одну** макрозадачу из Macrotask Queue
-4. Снова выполнить все микрозадачи
-5. Повторить
-
-```js
-console.log("1");
-
-setTimeout(() => console.log("2"), 0);   // macrotask
-
-Promise.resolve().then(() => console.log("3"));  // microtask
-
-console.log("4");
-
-// Порядок: 1, 4, 3, 2
-```
-
-```js
-// Сложный пример
-console.log("start");
-
-setTimeout(() => {
-    console.log("timeout");
-    Promise.resolve().then(() => console.log("promise inside timeout"));
-}, 0);
-
-Promise.resolve()
-    .then(() => console.log("promise 1"))
-    .then(() => console.log("promise 2"));
-
-console.log("end");
-
-// start → end → promise 1 → promise 2 → timeout → promise inside timeout
-```
-
----
-
 ## Promises — что это и как работают
 
 Promise — это объект, представляющий результат асинхронной операции. У него три состояния:

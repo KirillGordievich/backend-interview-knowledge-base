@@ -61,35 +61,52 @@ Node.js — однопоточный JavaScript runtime на движке V8. А
 
 ---
 
-## setImmediate vs process.nextTick vs setTimeout(fn, 0)
+## Как работает Event Loop болле простым языком
+
+Event Loop можно представить как систему с несколькими "контейнерами" для задач и циклом, который их обрабатывает. Он состоит из 2 очередей и 1 стека:
+
+**Call Stack (Стек вызовов)** — LIFO-структура. Здесь выполняются синхронные операции — обычные функции, циклы. Когда функция вызывается, она "кладётся" на вершину стека, когда выполняется — снимается. Если стек не пуст, Event Loop не может перейти к асинхронным задачам — он ждёт, пока стек опустеет.
+
+**Macrotask Queue (Очередь макрозадач)** — здесь хранятся колбэки от асинхронных операций: таймеры (`setTimeout`, `setInterval`), I/O-операции (чтение файлов, сетевые запросы), события от `EventEmitter`. Когда асинхронная операция завершается (например, таймер сработал), её колбэк попадает в эту очередь. Event Loop берёт задачи отсюда только после того, как стек опустел и все микрозадачи обработаны.
+
+**Microtask Queue (Очередь микрозадач)** — FIFO-очередь с **высшим приоритетом** по сравнению с макрозадачами. Здесь хранятся колбэки от `Promise` (`.then()`, `.catch()`), `queueMicrotask` и `process.nextTick()` (в Node.js, с ещё большим приоритетом). Микрозадачи выполняются сразу после опустошения стека, до макрозадач.
+
+**Порядок выполнения:**
+1. Выполнить весь синхронный код (Call Stack)
+2. Выполнить **все** микрозадачи (Microtask Queue) — до полного опустошения
+3. Взять **одну** макрозадачу из Macrotask Queue
+4. Снова выполнить все микрозадачи
+5. Повторить
 
 ```js
-console.log("1 — sync");
+console.log("1");
 
-process.nextTick(() => console.log("2 — nextTick"));
+setTimeout(() => console.log("2"), 0);   // macrotask
 
-Promise.resolve().then(() => console.log("3 — microtask"));
+Promise.resolve().then(() => console.log("3"));  // microtask
 
-setImmediate(() => console.log("4 — setImmediate"));
+console.log("4");
 
-setTimeout(() => console.log("5 — setTimeout 0"), 0);
-
-console.log("6 — sync");
-
-// Порядок: 1, 6, 2, 3, 5, 4
-// (nextTick → microtasks → timers phase → check phase)
+// Порядок: 1, 4, 3, 2
 ```
 
-| | Когда выполняется | Приоритет |
-|---|---|---|
-| `process.nextTick` | После текущей операции, до всего остального | Самый высокий |
-| `Promise.then` | Microtask queue | После nextTick |
-| `setTimeout(fn, 0)` | Фаза timers | После microtasks |
-| `setImmediate` | Фаза check (после I/O) | После timers |
+```js
+// Сложный пример
+console.log("start");
 
-**Практическое правило:** `process.nextTick` — рекурсивный вызов может заморозить event loop. Предпочитай `setImmediate` для разбивки тяжёлых задач.
+setTimeout(() => {
+    console.log("timeout");
+    Promise.resolve().then(() => console.log("promise inside timeout"));
+}, 0);
 
-**Event Loop: Node.js vs браузер** — в браузере упрощённая модель (microtask queue + macrotask queue). В Node.js — 6 фаз с разным приоритетом. Есть `process.nextTick` и `setImmediate` (нет в браузере). Нет Web APIs (setTimeout реализован через libuv).
+Promise.resolve()
+    .then(() => console.log("promise 1"))
+    .then(() => console.log("promise 2"));
+
+console.log("end");
+
+// start → end → promise 1 → promise 2 → timeout → promise inside timeout
+```
 
 ---
 
