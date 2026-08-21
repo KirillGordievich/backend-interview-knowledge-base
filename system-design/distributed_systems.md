@@ -164,16 +164,26 @@ await db.save(order)
 await kafka.publish(OrderCreated(order.id))   # может не выполниться
 ```
 
-**Решение — Transactional Outbox:**
-```python
-async with db.transaction():
-    await db.save(order)
-    await db.save(OutboxEvent(
-        type="OrderCreated",
-        payload=order.to_dict(),
-        status="pending"
-    ))
-# Outbox Processor (отдельный воркер) читает pending события → публикует → помечает sent
+**Идея Transactional Outbox:** рядом с основной таблицей создаём таблицу `outbox_events`. Запись данных и запись события делаются в одной DB-транзакции — либо сохраняется и то, и другое, либо ничего.
+
+```
+┌────────────────────── PostgreSQL ──────────────────────┐
+│                                                        │
+│  users                    outbox_events                │
+│  ┌──────────────┐         ┌─────────────────────────┐  │
+│  │ id           │         │ id                      │  │
+│  │ email        │         │ event_type              │  │
+│  │ ...          │         │ payload                 │  │
+│  └──────────────┘         │ status                  │  │
+│                           │ created_at              │  │
+│                           └─────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+                         │
+                         │ worker / publisher
+                         ↓
+                    ┌──────────┐
+                    │  Kafka   │
+                    └──────────┘
 ```
 
 ```sql
@@ -187,7 +197,28 @@ CREATE TABLE outbox_events (
 );
 ```
 
-**Гарантия:** или оба (запись + событие в outbox) попадают в транзакцию, или ни один.
+```js
+await db.transaction(async (tx) => {
+  const user = await tx.users.create({ data: dto });
+
+  await tx.outbox.create({
+    data: {
+      eventType: 'UserCreated',
+      payload: JSON.stringify(user),
+    },
+  });
+});
+```
+
+Отдельный worker (cron, отдельный процесс с retry/backoff) забирает pending-события, публикует в Kafka, и помечает как `published`. Если Kafka недоступна — событие остаётся pending и worker повторяет попытку позже.
+
+**Проблема: even Outbox не даёт exactly-once delivery.** Представь ситуацию:
+
+1. Worker публикует событие в Kafka
+2. Приложение падает до того, как успело пометить `status = published`
+3. Worker запускается снова и публикует то же событие повторно
+
+Поэтому consumer'ы должны быть **idempotent** — повторная обработка одного и того же события не должна ломать систему. Типичный подход: у каждого события есть уникальный `eventId`, а consumer хранит список уже обработанных id и пропускает дубликаты.
 
 ---
 
