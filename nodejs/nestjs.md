@@ -110,7 +110,7 @@ export class UsersController {
 
 ## Provider / Service
 
-Провайдер — любой класс с `@Injectable()`. NestJS управляет его созданием и инъекцией.
+Провайдер — любой класс с `@Injectable()`. Провайдер может участвовать в DI, Nest использует его metadata для разрешения зависимостей.
 
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -157,6 +157,14 @@ export class UsersService {
 }
 ```
 
+Причём сам по себе @Injectable() не регистрирует класс в модуле. Он должен попасть в DI-контейнер через: 
+
+```ts
+@Module({
+  providers: [UsersService],
+})
+```
+
 ---
 
 ## Dependency Injection (DI)
@@ -166,7 +174,7 @@ NestJS использует IoC-контейнер: ты объявляешь з
 **Зачем DI, а не `new` напрямую?** Без DI — `new UsersService(new Repository(new Database()))` в каждом месте. Проблемы: нельзя подменить зависимость на мок (тестирование), изменил конструктор → правь везде (связность), кто управляет lifecycle? DI решает всё это.
 
 ```ts
-// Классический DI через конструктор
+// Классический DI через конструктор — Nest сам создаёт и внедряет зависимости
 @Injectable()
 class AuthService {
     constructor(
@@ -174,24 +182,203 @@ class AuthService {
         private jwtService: JwtService,
     ) {}
 }
+```
 
-// Кастомный провайдер — useValue
-const providers = [
-    {
-        provide: 'CONFIG',
-        useValue: { dbUrl: process.env.DATABASE_URL }
+### Кастомные провайдеры
+
+Иногда нужно внедрить не конкретный класс, а абстракцию — интерфейс или токен. Nest поддерживает несколько способов создания провайдеров.
+
+**Пример: абстракция платёжного провайдера.** Сервис не знает, работает он со Stripe или PayPal — он зависит от интерфейса.
+
+```ts
+// payment.interface.ts
+interface PaymentProvider {
+    pay(amount: number): Promise<void>;
+}
+
+// stripe.provider.ts
+@Injectable()
+class StripePaymentProvider implements PaymentProvider {
+    async pay(amount: number) {
+        console.log(`Stripe: charging ${amount}`);
     }
-];
-// Инъекция:
-constructor(@Inject('CONFIG') private config: AppConfig) {}
+}
 
-// useFactory — создаёт провайдер через фабрику
-{
-    provide: 'CACHE',
-    useFactory: (config: ConfigService) => new Redis(config.get('REDIS_URL')),
-    inject: [ConfigService]
+// payments.service.ts — зависит от абстракции, не от конкретного класса
+const PAYMENT_PROVIDER = 'PAYMENT_PROVIDER';
+
+@Injectable()
+class PaymentsService {
+    constructor(
+        @Inject(PAYMENT_PROVIDER)
+        private readonly provider: PaymentProvider,
+    ) {}
 }
 ```
+
+А в модуле решаем, какую реализацию подставить:
+
+```ts
+// useExisting — ссылка на уже зарегистрированный провайдер
+@Module({
+    providers: [
+        StripePaymentProvider,
+        {
+            provide: PAYMENT_PROVIDER,
+            useExisting: StripePaymentProvider,
+        },
+    ],
+})
+export class PaymentsModule {}
+
+// useClass — Nest создаст новый экземпляр указанного класса
+{
+    provide: PAYMENT_PROVIDER,
+    useClass: StripePaymentProvider, // можно легко заменить на PayPalProvider
+}
+
+// useFactory — когда нужна логика при создании (например, зависимость от конфига)
+{
+    provide: PAYMENT_PROVIDER,
+    useFactory: (config: ConfigService) => {
+        return config.get('PAYMENT') === 'stripe'
+            ? new StripePaymentProvider()
+            : new PayPalPaymentProvider();
+    },
+    inject: [ConfigService],
+}
+
+// useValue — для статических значений, конфигов, моков в тестах
+{
+    provide: 'APP_CONFIG',
+    useValue: { dbUrl: process.env.DATABASE_URL },
+}
+```
+
+**Разница useExisting vs useClass:** `useExisting` создаёт алиас — оба токена указывают на один и тот же экземпляр. `useClass` создаёт новый экземпляр, даже если такой класс уже зарегистрирован.
+
+---
+
+## Scope провайдеров
+
+Каждый provider в NestJS имеет scope — правило, определяющее когда Nest создаёт экземпляр и сколько их существует.
+
+### DEFAULT (singleton)
+
+По умолчанию все провайдеры — синглтоны. Один экземпляр на всё приложение, все запросы используют его.
+
+```ts
+@Injectable() // scope: DEFAULT по умолчанию
+export class UsersService {}
+```
+
+```
+new UsersService()
+
+request 1 ─┐
+request 2 ─┼→ UsersService #1
+request 3 ─┘
+```
+
+### REQUEST
+
+Новый экземпляр создаётся для каждого входящего HTTP-запроса.
+
+```ts
+@Injectable({ scope: Scope.REQUEST })
+export class RequestContext {
+    userId: string;
+    correlationId: string;
+}
+```
+
+```
+Request A → RequestContext #1 (userId = "123")
+Request B → RequestContext #2 (userId = "456")
+```
+
+Каждый запрос получает изолированный контекст — данные не пересекаются. Полезно для хранения request-specific данных: текущий пользователь, tenant ID, correlation ID, locale.
+
+### TRANSIENT
+
+Каждый **потребитель** получает свой экземпляр провайдера. Не привязан к запросу — привязан к тому, кто инжектит.
+
+```ts
+@Injectable({ scope: Scope.TRANSIENT })
+export class LoggerService {}
+
+@Injectable()
+class UsersService {
+    constructor(private logger: LoggerService) {} // Logger #1
+}
+
+@Injectable()
+class OrdersService {
+    constructor(private logger: LoggerService) {} // Logger #2
+}
+```
+
+```
+DEFAULT (singleton):
+UsersService ──┐
+OrdersService ─┼→ Logger #1
+PaymentsService┘
+
+TRANSIENT:
+UsersService ───→ Logger #1
+OrdersService ──→ Logger #2
+PaymentsService → Logger #3
+```
+
+### Почему не делать всё REQUEST?
+
+Потому что это дорого. Singleton — один экземпляр на 1000 запросов. REQUEST scope — 1000 экземпляров на 1000 запросов.
+
+Кроме того, **scope заразителен** — если request-scoped сервис зависит от других провайдеров, вся цепочка зависимостей тоже становится request-scoped:
+
+```
+Controller → RequestService (REQUEST) → SomeService → Repository
+                                         ↑ тоже станет REQUEST-scoped
+```
+
+Поэтому по умолчанию провайдеры — singleton, и менять scope стоит только когда действительно нужна изоляция на уровне запроса или потребителя.
+
+---
+
+## Lifecycle hooks
+
+Scope отвечает на вопрос «сколько экземпляров и для кого?». Lifecycle — какие стадии проходит провайдер от создания до уничтожения.
+
+```ts
+@Injectable()
+export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+    onModuleInit() {
+        // Подключение к БД при старте модуля
+    }
+
+    onModuleDestroy() {
+        // Закрытие соединения при уничтожении модуля
+    }
+}
+```
+
+Порядок вызова хуков:
+
+```
+constructor()
+    ↓
+onModuleInit()           — модуль инициализирован
+    ↓
+onApplicationBootstrap() — всё приложение загружено
+    ↓
+... приложение работает ...
+    ↓
+onModuleDestroy()        — модуль уничтожается
+    ↓
+onApplicationShutdown()  — приложение завершается
+```
+
+Типичные применения: подключение/закрытие соединений (БД, Redis, RabbitMQ), запуск background workers, graceful shutdown.
 
 ---
 
@@ -231,40 +418,35 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 ## Pipes (Validation & Transformation)
 
-Pipe обрабатывает входные данные перед хендлером (валидация и трансформация).
+Pipe применяется **перед** вызовом handler'а. Занимается двумя вещами: валидацией и трансформацией входных данных.
 
-**Pipe vs Interceptor:**
+```
+GET /users/123
 
-| | Pipe | Interceptor |
-|---|---|---|
-| Когда | Перед handler'ом | До и после handler'а |
-| Что делает | Валидация и трансформация **входных данных** | Трансформация запроса/ответа, side-effects |
-| Доступ к ответу | Нет | Да (через Observable) |
-
-**Guard vs Middleware:**
-
-| | Middleware | Guard |
-|---|---|---|
-| Когда | Самый первый в pipeline | После Middleware |
-| Контекст | Только `req`/`res` | `ExecutionContext` — знает какой handler вызовется |
-| Назначение | Общая обработка (логи, CORS) | Авторизация, проверка прав |
-| Доступ к метаданным | Нет | Да (`Reflector` → `@Roles()`, `@Public()`) |
+"123"          ← строка из URL
+   ↓
+ParseIntPipe   ← pipe трансформирует
+   ↓
+123            ← число в handler
+   ↓
+Controller
+```
 
 ```ts
-// Глобальный ValidationPipe — валидирует все DTO
-// main.ts
-app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,        // убирает лишние поля из запроса
-    forbidNonWhitelisted: true,  // ошибка при лишних полях
-    transform: true,        // автоконвертация типов (string → number)
-    transformOptions: {
-        enableImplicitConversion: true
-    }
-}));
-
-// ParseIntPipe — конвертирует строку в число
+// ParseIntPipe — конвертирует строку в число, кидает 400 если не число
 @Get(':id')
 findOne(@Param('id', ParseIntPipe) id: number) { ... }
+
+// ValidationPipe — проверяет DTO через class-validator
+@Post()
+create(@Body() dto: CreateUserDto) { ... }
+
+// Глобальный ValidationPipe — валидирует все DTO автоматически
+app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,             // убирает лишние поля из запроса
+    forbidNonWhitelisted: true,  // ошибка при лишних полях
+    transform: true,             // автоконвертация типов (string → number)
+}));
 
 // Кастомный Pipe
 @Injectable()
@@ -279,14 +461,20 @@ export class TrimPipe implements PipeTransform {
 
 ## Interceptors
 
-Interceptor — перехватывает запрос/ответ. Используется для логирования, кэширования, трансформации ответа.
+Interceptor **оборачивает** выполнение handler'а — может выполнить код **до** и **после**. Этим он отличается от Pipe (только до) и Guard (только до).
+
+```
+Interceptor (до)
+   ↓
+   Controller → Service
+   ↓
+Interceptor (после) ← имеет доступ к результату
+```
+
+Отлично подходит для: логирования времени, трансформации ответа, кэширования, tracing.
 
 ```ts
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map, tap } from 'rxjs/operators';
-
-// Логирование времени выполнения
+// Логирование времени выполнения — код до и после handler'а
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -295,8 +483,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
         return next.handle().pipe(
             tap(() => {
-                const ms = Date.now() - start;
-                console.log(`${req.method} ${req.url} — ${ms}ms`);
+                console.log(`${req.method} ${req.url} — ${Date.now() - start}ms`);
             })
         );
     }
@@ -310,12 +497,11 @@ export class TransformInterceptor<T> implements NestInterceptor<T, { data: T }> 
     }
 }
 
-// Применение
+// Применение на контроллер или глобально
 @UseInterceptors(LoggingInterceptor)
 @Controller('users')
 export class UsersController { ... }
 
-// Глобально
 app.useGlobalInterceptors(new LoggingInterceptor());
 ```
 
@@ -323,12 +509,21 @@ app.useGlobalInterceptors(new LoggingInterceptor());
 
 ## Guards
 
-Guard определяет, может ли запрос быть обработан (авторизация).
+Guard отвечает на один вопрос: **можно ли этому запросу попасть дальше?** Если Guard возвращает `false` — запрос не дойдёт до Controller.
+
+```
+Request
+  ↓
+Middleware
+  ↓
+Guard ❌ → 403 Forbidden (запрос отклонён)
+  ↓ ✅
+Controller
+```
+
+JWT authentication — типичный use case Guard. Guard работает в Nest `ExecutionContext` и имеет доступ к метаданным handler'а (через `Reflector`), поэтому через него удобно реализовать `@Roles('admin')`, `@Public()` и т.д.
 
 ```ts
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
     constructor(private jwtService: JwtService) {}
@@ -347,7 +542,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 }
 
-// Применение
+// Применение — если JWT невалидный, до handler'а запрос не дойдёт
 @UseGuards(JwtAuthGuard)
 @Get('profile')
 getProfile(@Request() req) {
@@ -385,25 +580,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 }
 ```
-
----
-
-## Scopes провайдеров
-
-```ts
-import { Injectable, Scope } from '@nestjs/common';
-
-@Injectable({ scope: Scope.DEFAULT })    // Singleton — один на всё приложение (по умолчанию)
-class SingletonService {}
-
-@Injectable({ scope: Scope.REQUEST })    // Новый экземпляр на каждый HTTP-запрос
-class RequestScopedService {}
-
-@Injectable({ scope: Scope.TRANSIENT })  // Новый экземпляр при каждой инъекции
-class TransientService {}
-```
-
-**Важно:** REQUEST scope поднимается по дереву зависимостей — все зависимости тоже станут REQUEST scope.
 
 ---
 
@@ -558,8 +734,11 @@ bootstrap();
 
 ## Middleware
 
+Middleware работает **самым первым** в pipeline — ещё до Guards и Interceptors. Он знает только `req`, `res`, `next` и не имеет доступа к Nest execution context.
+
+Типичные задачи: логирование, correlation ID, работа с cookies/headers, CORS.
+
 ```ts
-// Middleware выполняется до Guards и Interceptors
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
     use(req: Request, res: Response, next: NextFunction) {
@@ -583,15 +762,44 @@ export class AppModule implements NestModule {
 ## Порядок выполнения запроса
 
 ```
-Incoming Request
-    → Middleware
-    → Guards
-    → Interceptors (before)
-    → Pipes (validation/transformation)
-    → Controller/Route Handler
-    → Interceptors (after)
-    → Exception Filters (при ошибке)
-    → Response
+Request
+  ↓
+Middleware        ← самый ранний, знает только req/res/next
+  ↓
+Guards            ← можно ли пустить дальше? (авторизация)
+  ↓
+Interceptors (до) ← код перед handler'ом
+  ↓
+Pipes             ← валидация и трансформация входных данных
+  ↓
+Controller        ← handler
+  ↓
+Service           ← бизнес-логика
+  ↓
+Interceptors (после) ← код после handler'а (timing, transform response)
+  ↓
+Exception Filters ← при ошибке на любом этапе
+  ↓
+Response
+```
+
+### Guard vs Middleware
+
+Middleware работает на уровне HTTP — он знает `req`, `res`, `next`, но **не знает** какой handler будет вызван.
+
+Guard работает в Nest `ExecutionContext` — может получить информацию о handler/class и метаданные (через `Reflector`). Поэтому авторизацию вроде `@Roles('admin')` логичнее делать через Guard.
+
+### Interceptor vs Middleware
+
+Middleware видит только входящий запрос и вызывает `next()` — у него нет доступа к результату handler'а.
+
+Interceptor оборачивает handler через `next.handle()` и получает результат — поэтому timing, response transformation, caching удобнее делать через Interceptor.
+
+```
+Middleware:              Interceptor:
+req → middleware → next  interceptor → next.handle() → result → interceptor
+     (нет доступа              (доступ к результату)
+      к результату)
 ```
 
 ---
