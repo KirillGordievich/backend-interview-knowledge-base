@@ -554,16 +554,34 @@ getProfile(@Request() req) {
 
 ## Exception Filters
 
-```ts
-// Встроенные исключения
-throw new NotFoundException('User not found');
-throw new BadRequestException('Invalid data');
-throw new UnauthorizedException('Not authenticated');
-throw new ForbiddenException('Access denied');
-throw new ConflictException('Email already exists');
-throw new InternalServerErrorException('Server error');
+По умолчанию NestJS сам обрабатывает исключения — если кинуть `HttpException`, Nest вернёт JSON с `statusCode` и `message`. Но формат ответа фиксированный, и для продакшена часто нужен свой: добавить `timestamp`, `path`, `correlationId`, залогировать ошибку и т.д.
 
-// Кастомный фильтр
+Exception Filter перехватывает исключения и даёт полный контроль над ответом.
+
+```
+Controller throws NotFoundException
+        ↓
+Exception Filter перехватывает
+        ↓
+Формирует кастомный JSON-ответ
+        ↓
+Response { statusCode: 404, message: "User not found", path: "/users/123", timestamp: "..." }
+```
+
+**Встроенные исключения** — Nest предоставляет набор готовых классов, каждый маппится на HTTP-статус:
+
+```ts
+throw new NotFoundException('User not found');          // 404
+throw new BadRequestException('Invalid data');          // 400
+throw new UnauthorizedException('Not authenticated');   // 401
+throw new ForbiddenException('Access denied');          // 403
+throw new ConflictException('Email already exists');    // 409
+throw new InternalServerErrorException('Server error'); // 500
+```
+
+**Кастомный фильтр** — когда нужен единый формат ошибок по всему приложению:
+
+```ts
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
     catch(exception: HttpException, host: ArgumentsHost) {
@@ -579,7 +597,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         });
     }
 }
+
+// Применение на контроллер
+@UseFilters(HttpExceptionFilter)
+@Controller('users')
+export class UsersController { ... }
+
+// Или глобально — для всех маршрутов
+app.useGlobalFilters(new HttpExceptionFilter());
 ```
+
+`@Catch()` без аргументов перехватит **все** исключения, не только `HttpException` — полезно как fallback для непредвиденных ошибок (500).
 
 ---
 
