@@ -18,7 +18,7 @@
 
 ---
 
-## chmod
+## Как менять права доступа (chmod)
 
 ```bash
 # Символьный синтаксис
@@ -58,7 +58,7 @@ chmod 777 file.txt       # rwxrwxrwx (опасно)
 
 ---
 
-## chown
+## Как сменить владельца (chown)
 
 ```bash
 chown user file.txt           # изменить владельца

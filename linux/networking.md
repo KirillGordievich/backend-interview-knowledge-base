@@ -62,7 +62,7 @@ fuser 8080/tcp     # только PID
 
 ---
 
-## DNS
+## Что такое DNS
 
 DNS (Domain Name System) — переводит доменное имя в IP-адрес.
 
