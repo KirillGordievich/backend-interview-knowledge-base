@@ -9,7 +9,7 @@
 
 ---
 
-## Виды индексов
+## Какие виды индексов бывают
 
 | Вид | Описание |
 |---|---|
@@ -32,7 +32,7 @@ CREATE INDEX idx_customer_inactive ON customer(active) WHERE active = 0;
 
 ---
 
-## Кластерный vs Некластерный
+## В чём разница между кластерным и некластерным индексом
 
 | | Кластерный (Clustered) | Некластерный (Non-Clustered) |
 |---|---|---|
@@ -57,7 +57,9 @@ CREATE INDEX idx_customer_inactive ON customer(active) WHERE active = 0;
 
 ---
 
-## EXPLAIN / EXPLAIN ANALYZE
+## Что показывает EXPLAIN и EXPLAIN ANALYZE
+
+`EXPLAIN` показывает план выполнения запроса — какие операции планировщик выбрал. `EXPLAIN ANALYZE` делает то же, но **реально выполняет запрос** и показывает фактическое время и количество строк:
 
 ```sql
 EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 42;

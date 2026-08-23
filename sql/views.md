@@ -1,6 +1,6 @@
 # SQL — Представления (Views)
 
-## Обычное представление (View)
+## Что такое представление (View)
 
 Именованный SELECT-запрос, сохранённый в БД. При обращении к view запрос выполняется заново — данные не хранятся физически.
 
@@ -29,7 +29,7 @@ DROP VIEW active_users;
 
 ---
 
-## Материализованное представление (Materialized View)
+## Что такое материализованное представление
 
 Результат SELECT физически сохраняется на диске. Читается как таблица — быстро. Нужно явно обновлять.
 
@@ -64,7 +64,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY monthly_revenue;
 
 ---
 
-## View vs Materialized View
+## Чем View отличается от Materialized View
 
 | | View | Materialized View |
 |---|---|---|
@@ -76,7 +76,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY monthly_revenue;
 
 ---
 
-## Обновляемые представления
+## Можно ли обновлять данные через View
 
 Простые view (без JOIN, GROUP BY, DISTINCT, агрегатов) поддерживают INSERT/UPDATE/DELETE:
 
