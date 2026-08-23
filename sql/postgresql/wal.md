@@ -9,7 +9,7 @@ WAL (Write-Ahead Log, журнал с опережающей записью) —
 ## Зачем нужен WAL
 
 **Durability (надёжность ACID):**
-После `COMMIT` данные в WAL. При сбое питания — PostgreSQL восстановит их при следующем запуске, применив WAL к последнему checkpoint.
+После `COMMIT` запись гарантированно находится в WAL на диске. При сбое питания — PostgreSQL восстановит их при следующем запуске, применив WAL к последнему checkpoint.
 
 **Производительность:**
 Запись в WAL последовательная (append-only) — на порядок быстрее случайной записи по всей БД.
@@ -39,7 +39,7 @@ Client                PostgreSQL                    Disk
 
 ---
 
-## Checkpoint
+## Что такое checkpoint
 
 Момент, когда PostgreSQL сбрасывает изменённые страницы (dirty pages) из shared_buffers на диск.
 
@@ -58,7 +58,9 @@ min_wal_size = 80MB          -- минимум WAL-файлов на диске
 
 ---
 
-## WAL и репликация
+## Как WAL используется для репликации
+
+WAL-записи можно передавать на standby-реплики — это основа streaming replication в PostgreSQL:
 
 ```
 Primary ──── WAL stream ────► Standby (replica)
@@ -84,7 +86,9 @@ primary_conninfo = 'host=primary port=5432 user=replicator'
 
 ---
 
-## WAL Level
+## Какие бывают уровни WAL (wal_level)
+
+Параметр `wal_level` определяет, сколько информации пишется в WAL. Чем выше уровень, тем больше данных и больше возможностей:
 
 ```sql
 -- postgresql.conf
@@ -95,7 +99,9 @@ wal_level = logical    -- для logical replication (CDC, Debezium)
 
 ---
 
-## Полезные команды
+## Какие команды полезны для работы с WAL
+
+Основные диагностические запросы для мониторинга WAL и репликации:
 
 ```sql
 -- Текущая позиция в WAL
