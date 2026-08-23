@@ -35,7 +35,7 @@ Circle(5)   # OK — все методы реализованы
 
 ---
 
-### Декораторы abc
+### Какие декораторы есть в модуле abc
 
 | Декоратор | Описание |
 |---|---|
@@ -622,10 +622,31 @@ class Circle:
 
 ---
 
-## classmethod vs staticmethod
+## Чем отличаются classmethod и staticmethod
 
-- `@classmethod` — получает класс (`cls`) первым аргументом, может создавать экземпляры и обращаться к атрибутам класса
-- `@staticmethod` — не получает ни `self`, ни `cls`, обычная функция в пространстве имён класса
+- `@classmethod` — получает класс (`cls`) первым аргументом. Может создавать экземпляры и обращаться к атрибутам класса. Часто используется как альтернативный конструктор.
+- `@staticmethod` — не получает ни `self`, ни `cls`. По сути обычная функция, но логически привязана к классу.
+
+```python
+class Date:
+    def __init__(self, year, month, day):
+        self.year, self.month, self.day = year, month, day
+
+    @classmethod
+    def from_string(cls, date_str):
+        """Альтернативный конструктор — cls указывает на актуальный класс."""
+        y, m, d = map(int, date_str.split('-'))
+        return cls(y, m, d)  # работает и для подклассов
+
+    @staticmethod
+    def is_valid(date_str):
+        """Не нужен ни self, ни cls — просто утилита."""
+        parts = date_str.split('-')
+        return len(parts) == 3 and all(p.isdigit() for p in parts)
+
+Date.from_string('2024-01-15')  # Date(2024, 1, 15)
+Date.is_valid('2024-01-15')     # True
+```
 
 ---
 

@@ -105,9 +105,9 @@ data = img_buf.read()
 
 ## Сериализация
 
-### json
+### Сериализация в JSON
 
-Работает только с базовыми типами: `dict`, `list`, `str`, `int`, `float`, `bool`, `None`.
+Модуль `json` работает только с базовыми типами: `dict`, `list`, `str`, `int`, `float`, `bool`, `None`.
 
 ```python
 import json
@@ -140,9 +140,9 @@ class DateEncoder(json.JSONEncoder):
 json.dumps({'date': datetime.date.today()}, cls=DateEncoder)
 ```
 
-### pickle
+### Сериализация через pickle
 
-Сериализует практически любые Python-объекты (функции, классы, лямбды). Формат бинарный и Python-специфичный — не для обмена между языками.
+Модуль `pickle` сериализует практически любые Python-объекты (функции, классы, лямбды). Формат бинарный и Python-специфичный — не для обмена между языками.
 
 ```python
 import pickle
