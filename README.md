@@ -1,6 +1,6 @@
 # Backend Interview Knowledge Base
 
-Шпаргалки для подготовки к техническим интервью на позицию Python Backend-разработчика.
+Шпаргалки для подготовки к техническим интервью на позицию Backend-разработчика.
 
 ---
 
@@ -20,6 +20,17 @@
 | [modules.md](python/modules.md) | Модули, пакеты, `sys.path`, `__all__`, `importlib.reload` |
 | [io.md](python/io.md) | Файловые объекты, режимы `open()`, `StringIO/BytesIO`, json, pickle |
 | [tools.md](python/tools.md) | Ruff, flake8, mypy, Poetry, uv, pre-commit |
+
+---
+
+## Node.js
+
+| Файл | Темы |
+|---|---|
+| [javascript.md](nodejs/javascript.md) | Типы, NaN, hoisting, замыкания, this, call/apply/bind, копирование объектов, array methods, деструктуризация, Promises, async/await, Map/Set/WeakMap, var/let/const scope, Symbol + Symbol.iterator, spread/rest, optional chaining `?.`/`??`, generators |
+| [typescript.md](nodejs/typescript.md) | any/unknown, void/never, interface vs type vs abstract class, generics, utility types (Partial/Pick/Omit/Record), type assertion, enum, модификаторы доступа, mapped types, conditional types, decorators |
+| [nestjs.md](nodejs/nestjs.md) | Модули, провайдеры, контроллеры, DI/IoC, DTO + валидация, pipes, interceptors, guards, exception filters, scopes, TypeORM entity, Swagger, middleware, порядок выполнения запроса, Auth (Passport.js + JWT), ConfigModule, lifecycle hooks, microservices (TCP/Kafka) |
+| [nodejs.md](nodejs/nodejs.md) | Архитектура (V8 + libuv), фазы Event Loop, CommonJS vs ESM, EventEmitter, Streams + pipeline, Buffer, Cluster, Worker Threads, process |
 
 ---
 
@@ -44,7 +55,7 @@
 
 | Файл | Темы |
 |---|---|
-| [shell.md](linux/shell.md) | Shell, bash vs zsh, PATH, env vars, grep/find/awk/sed/xargs и другие команды |
+| [shell.md](linux/shell.md) | Shell, bash vs zsh, PATH, env vars, grep/find/awk/sed/xargs, практические сценарии (логи, SSH, tar, rsync) |
 | [filesystem.md](linux/filesystem.md) | Inode, hard link vs symlink, что происходит при `rm`, структура /etc /var /proc /tmp |
 | [permissions.md](linux/permissions.md) | rwx, chmod числовой/символьный, setuid/setgid/sticky bit |
 | [processes.md](linux/processes.md) | Процесс vs программа, fork/exec, PID/PPID, zombie/orphan/daemon, сигналы, PID 1 в Docker |
@@ -55,22 +66,12 @@
 
 ---
 
-## PostgreSQL
-
-| Файл | Темы |
-|---|---|
-| [isolation.md](postgresql/isolation.md) | Уровни изоляции, аномалии (dirty read, phantom read) |
-| [planner.md](postgresql/planner.md) | Query planner, EXPLAIN, статистика |
-| [vacuum.md](postgresql/vacuum.md) | VACUUM, AUTOVACUUM, bloat |
-| [wal.md](postgresql/wal.md) | WAL, checkpoint, streaming replication, PITR, wal_level |
-
----
-
 ## SQL — Дополнительно
 
 | Файл | Темы |
 |---|---|
 | [advanced.md](sql/advanced.md) | OLTP vs OLAP, Star Schema, гонки данных, распределённые транзакции, 2PC, Saga |
+| [postgresql/wal.md](sql/postgresql/wal.md) | WAL, checkpoint, streaming replication, PITR, wal_level |
 
 ---
 
@@ -81,7 +82,7 @@
 | [protocols.md](web/protocols.md) | TCP/IP, HTTP/1.1/2/3, HTTPS, TLS handshake, WebSockets, RPC, gRPC (Protobuf, streaming), JSON-RPC, Zero Copy |
 | [performance.md](web/performance.md) | TTFB, latency, throughput, RPS, percentile, event loop lag, sticky sessions |
 | [auth.md](web/auth.md) | Authentication vs Authorization, Sessions, JWT, Access/Refresh токены, CORS |
-| [api.md](web/api.md) | REST принципы, HTTP методы, OpenAPI/Swagger |
+| [api.md](web/api.md) | REST принципы, OpenAPI/Swagger |
 | [nginx.md](web/nginx.md) | Reverse proxy, load balancing, SSL termination, location, upstream, rate limiting, кэш |
 
 ---
@@ -103,17 +104,6 @@
 | Файл | Темы |
 |---|---|
 | [testing.md](testing/testing.md) | Unit/Integration/E2E, pytest, mocking/stubbing, фикстуры, CI/CD |
-
----
-
-## Node.js
-
-| Файл | Темы |
-|---|---|
-| [javascript.md](nodejs/javascript.md) | Типы, NaN, hoisting, замыкания, this, call/apply/bind, копирование объектов, array methods, деструктуризация, Event Loop, Promises, async/await, Map/Set/WeakMap, var/let/const scope, Symbol + Symbol.iterator, spread/rest, optional chaining `?.`/`??`, generators |
-| [typescript.md](nodejs/typescript.md) | any/unknown, void/never, interface vs type vs abstract class, generics, utility types (Partial/Pick/Omit/Record), type assertion, enum, модификаторы доступа, mapped types, conditional types, decorators |
-| [nestjs.md](nodejs/nestjs.md) | Модули, провайдеры, контроллеры, DI/IoC, DTO + валидация, pipes, interceptors, guards, exception filters, scopes, TypeORM entity, Swagger, middleware, порядок выполнения запроса, Auth (Passport.js + JWT), ConfigModule, lifecycle hooks, microservices (TCP/Kafka) |
-| [nodejs.md](nodejs/nodejs.md) | Архитектура (V8 + libuv), фазы Event Loop, setImmediate vs nextTick vs setTimeout(0), CommonJS vs ESM, EventEmitter, Streams + pipeline, Buffer, Cluster, Worker Threads, process |
 
 ---
 
@@ -185,7 +175,26 @@
 
 ---
 
+## Алгоритмы
+
+| Файл | Темы |
+|---|---|
+| [patterns-overview.md](algorithms/patterns-overview.md) | Обзор паттернов, когда какой применять |
+| [two-pointers.md](algorithms/two-pointers.md) | Два указателя, палиндром, слияние отсортированных списков |
+| [sliding-window.md](algorithms/sliding-window.md) | Скользящее окно |
+| [binary-search.md](algorithms/binary-search.md) | Бинарный поиск |
+| [hashmap-set.md](algorithms/hashmap-set.md) | HashMap, Set |
+| [prefix-sum.md](algorithms/prefix-sum.md) | Префиксные суммы |
+| [stack.md](algorithms/stack.md) | Стек |
+| [heap.md](algorithms/heap.md) | Куча (Heap) |
+| [sorting.md](algorithms/sorting.md) | Сортировки |
+| [greedy.md](algorithms/greedy.md) | Жадные алгоритмы |
+| [dfs.md](algorithms/dfs.md) | Поиск в глубину |
+| [bfs.md](algorithms/bfs.md) | Поиск в ширину |
+| [dynamic-programming.md](algorithms/dynamic-programming.md) | Динамическое программирование |
+
+---
+
 ## Другие разделы
 
-- [algorithms/](algorithms/) — алгоритмы и структуры данных
 - [git/](git/) — система контроля версий

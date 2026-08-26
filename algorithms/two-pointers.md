@@ -36,3 +36,29 @@ return True
 Двигаем указатели от краёв к центру. Если символы на обоих концах совпадают — продолжаем. Если нет — не палиндром.
 
 **Сложность:** `O(n)` по времени, `O(1)` по памяти.
+
+## Пример: слияние двух отсортированных linked list
+
+[Merge Two Sorted Lists](https://leetcode.com/problems/merge-two-sorted-lists/) — два указателя идут по двум спискам одновременно, на каждом шаге берём меньший элемент.
+
+```python
+def mergeTwoLists(list1, list2):
+    dummy = ListNode(0)  # фиктивный узел, чтобы не обрабатывать первый элемент отдельно
+    current = dummy
+
+    while list1 and list2:
+        if list1.val <= list2.val:
+            current.next = list1
+            list1 = list1.next
+        else:
+            current.next = list2
+            list2 = list2.next
+        current = current.next
+
+    current.next = list1 or list2  # оставшийся хвост
+    return dummy.next
+```
+
+Два указателя (`list1`, `list2`) двигаются вперёд по своим спискам. На каждом шаге присоединяем узел с меньшим значением к результату. Когда один список закончился — присоединяем остаток второго.
+
+**Сложность:** `O(n + m)` по времени, `O(1)` по памяти.
