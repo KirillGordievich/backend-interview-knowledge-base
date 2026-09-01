@@ -20,7 +20,7 @@
 
 Docker использует **клиент-серверную** архитектуру:
 
-- **Docker CLI** (клиент) — отправляет команды через REST API
+- **Docker CLI** (клиент) — отправляет команды через REST API (По умолчанию CLI обычно общается с daemon'ом через Unix socket, а не HTTP)
 - **Docker Daemon** (`dockerd`) — управляет образами, контейнерами, сетями, томами
 - **containerd** — среда выполнения контейнеров (container runtime)
 - **runc** — низкоуровневый OCI runtime, непосредственно создаёт контейнер через системные вызовы
@@ -46,7 +46,7 @@ docker image inspect nginx       # метаданные образа
 docker history nginx              # слои образа
 ```
 
-**Тег** — версия образа. `nginx:1.25`, `python:3.12-slim`. Тег `latest` — не «последний», а дефолтный (может быть устаревшим).
+**Тег** — версия образа. `nginx:1.25`, `python:3.12-slim`, `node:22-alpine`.
 
 ---
 
@@ -123,6 +123,51 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 | `VOLUME` | Точка монтирования |
 | `USER` | Пользователь для последующих команд |
 | `HEALTHCHECK` | Проверка здоровья контейнера |
+
+**Слои (layers):** Docker image состоит из набора неизменяемых filesystem layers. Каждый слой содержит изменения файловой системы относительно предыдущего слоя. Слои кэшируются и могут переиспользоваться между сборками и образами.
+
+`RUN`, `COPY` и `ADD` обычно создают новый filesystem layer. Такие инструкции, как `ENV`, `WORKDIR`, `USER`, `CMD`, `EXPOSE`, в основном изменяют конфигурацию/metadata образа и не создают отдельный filesystem layer.
+
+Например:
+
+```dockerfile
+FROM python:3.12-slim
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+Base image
+    ↓
+COPY requirements.txt    ← layer
+    ↓
+RUN pip install          ← layer
+    ↓
+COPY . .                 ← layer
+    ↓
+CMD                      ← image configuration
+
+Главные преимущества layers:
+
+caching — неизменившиеся слои переиспользуются;
+повторное использование слоёв между образами;
+Copy-on-Write для контейнера;
+возможность эффективно хранить и передавать только изменившиеся слои.
+
+Поэтому важно правильно располагать инструкции Dockerfile. Например, зависимости лучше копировать и устанавливать до исходного кода:
+
+```dockerfile
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install
+
+COPY . .
+```
+
+Тогда изменение исходного кода не инвалидирует cache установки зависимостей.
 
 ### ENTRYPOINT vs CMD
 
