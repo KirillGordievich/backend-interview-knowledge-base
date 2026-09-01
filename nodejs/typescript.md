@@ -530,6 +530,41 @@ type EventName = "click" | "focus" | "blur";
 type Handler = `on${Capitalize<EventName>}`;  // "onClick" | "onFocus" | "onBlur"
 ```
 
+## Рекурсивные типы
+
+Тип может ссылаться на самого себя. Например:
+
+```ts
+type NestedArray = (string | NestedArray)[];
+```
+
+NestedArray — это массив, в котором каждый элемент либо string, либо снова NestedArray.
+
+То есть TypeScript фактически позволяет такую структуру:
+
+```ts
+const a: NestedArray = ['a', 'b'];
+
+const b: NestedArray = [
+  'a',
+  ['b', 'c'],
+];
+
+const c: NestedArray = [
+  'a',
+  ['b', ['c', ['d']]],
+];
+```
+
+И глубина может быть практически любой. И это работает не только с массивами. 
+
+```ts
+type LinkedList = {
+  value: string;
+  next: LinkedList | null;
+};
+```
+
 ---
 
 ## Декораторы (используются в NestJS, TypeORM)
