@@ -110,6 +110,66 @@ console.log("end");
 
 ---
 
+## Как измерить производительность и задержку event loop в Node.js?
+
+Node.js предоставляет встроенный модуль `perf_hooks` для точного измерения производительности — аналог `Performance API` в браузере, но с дополнительными возможностями специфичными для серверной среды.
+
+### performance.now() и performance.mark/measure
+
+`performance.now()` возвращает время в миллисекундах с высокой точностью (до микросекунд). В отличие от `Date.now()`, не зависит от системных часов — монотонный таймер, который не может "прыгнуть назад".
+
+```js
+import { performance, PerformanceObserver } from 'perf_hooks';
+
+// Простое измерение времени выполнения
+const start = performance.now();
+await heavyDatabaseQuery();
+console.log(`Query took ${(performance.now() - start).toFixed(2)}ms`);
+
+// Через mark/measure — удобнее когда измерений много
+performance.mark('query-start');
+await heavyDatabaseQuery();
+performance.mark('query-end');
+
+performance.measure('db-query', 'query-start', 'query-end');
+
+// PerformanceObserver — собирает метрики без засорения основного кода
+const obs = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+        console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`);
+    }
+});
+obs.observe({ entryTypes: ['measure'] });
+```
+
+`mark/measure` удобен тем, что метки расставляются в коде, а сбор метрик происходит отдельно через `PerformanceObserver` — не нужно протаскивать переменные `start` через весь код.
+
+### monitorEventLoopDelay — мониторинг задержки event loop
+
+Главный инструмент для диагностики "тормозов" в Node.js. Он замеряет, сколько времени проходит между итерациями event loop — если это число растёт, значит что-то блокирует цикл (CPU-bound код, синхронные операции).
+
+```js
+import { monitorEventLoopDelay } from 'perf_hooks';
+
+const histogram = monitorEventLoopDelay({ resolution: 20 }); // замер каждые 20мс
+histogram.enable();
+
+// Через некоторое время проверяем
+setTimeout(() => {
+    console.log(`min:  ${(histogram.min / 1e6).toFixed(2)}ms`);
+    console.log(`max:  ${(histogram.max / 1e6).toFixed(2)}ms`);
+    console.log(`mean: ${(histogram.mean / 1e6).toFixed(2)}ms`);
+    console.log(`p99:  ${(histogram.percentile(99) / 1e6).toFixed(2)}ms`);
+    histogram.reset(); // сбросить для следующего интервала
+}, 5000);
+```
+
+Значения возвращаются в **наносекундах** — делим на `1e6` чтобы получить миллисекунды. Нормальные значения `mean` — до 10-20мс. Если `p99` больше 100мс — пора искать блокирующий код.
+
+**На практике** `monitorEventLoopDelay` используют вместе с метрика-системами (Prometheus, Datadog) — снимают показания раз в 10-30 секунд и отправляют для мониторинга в production.
+
+---
+
 ## CommonJS vs ESM
 
 ### CommonJS (`.js`, `.cjs`)
