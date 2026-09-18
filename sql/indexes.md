@@ -75,3 +75,40 @@ EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 42;
 | `actual time` | Реальное время выполнения (только в ANALYZE) |
 | `rows` | Оценка vs реальное кол-во строк; большое расхождение → проблема со статистикой |
 | `loops` | Сколько раз выполнялся узел; `loops × rows` — реальный объём работы |
+
+---
+
+## Какой индекс ты бы предложила для этого запроса? Почему именно в таком порядке расположишь поля индекса?
+
+Представь таблицу:
+
+```sql
+orders (
+    id,
+    user_id,
+    status,
+    created_at,
+    amount
+)
+```
+
+И очень часто выполняется запрос:
+
+```sql
+SELECT *
+FROM orders
+WHERE user_id = 123
+  AND status = 'completed'
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+Я бы соделал индекс
+
+```sql
+CREATE INDEX idx_orders_user_status_created
+ON orders (user_id, status, created_at DESC);
+```
+
+Чтобы сначала сократить поиск по ордерам конкретного юзера, потом выбрать ордера только с нужным статусом, а потом сразу бы получил отсортированный список нужны ордеров, просто взяв 20 первых ордеров.
+
