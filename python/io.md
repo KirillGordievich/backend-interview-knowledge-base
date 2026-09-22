@@ -203,3 +203,67 @@ with open('data.pkl', 'rb') as f:
 
 - **JSON** — обмен данными между системами, API, конфиги, человекочитаемость
 - **pickle** — кэширование Python объектов, ML модели, внутреннее хранение (только если доверяешь источнику)
+
+---
+
+## pathlib vs os.path
+
+### pathlib — объектный подход
+
+`pathlib` представляет путь как объект `Path`, с которым работаешь через методы и оператор `/`:
+
+```python
+from pathlib import Path
+
+path = Path("data") / "users" / "file.txt"  # вместо os.path.join(...)
+
+path.exists()       # существует ли
+path.is_file()      # файл ли
+path.is_dir()       # директория ли
+path.name           # file.txt
+path.stem           # file
+path.suffix         # .txt
+path.parent         # data/users
+```
+
+Основные операции:
+
+```python
+# Создать директорию (вся вложенная структура)
+path.mkdir(parents=True, exist_ok=True)
+
+# Чтение/запись файла
+content = path.read_text()
+path.write_text("Hello")
+
+# Поиск файлов
+for file in path.glob("*.json"):       # в текущей директории
+    print(file)
+for file in path.rglob("*.py"):        # рекурсивно
+    print(file)
+
+# Абсолютный путь (+ нормализация, разрешение symlink)
+path.resolve()
+```
+
+### os.path — функциональный подход
+
+Старый, но до сих пор активно используемый API:
+
+```python
+import os
+
+path = os.path.join("data", "users", "file.txt")
+
+os.path.exists(path)
+os.path.isfile(path)
+os.path.basename(path)    # file.txt
+os.path.dirname(path)     # data/users
+os.path.splitext(path)    # ('data/users/file', '.txt')
+```
+
+### Что выбрать
+
+Для нового кода — `pathlib`. Читается естественнее, объектная модель пути, кроссплатформенность. `os.path` актуален в существующих проектах и когда используется API `os`. Переписывать рабочий код только ради замены `os.path` на `pathlib` — не стоит.
+
+**Важно:** `pathlib` не заменяет `open()` полностью. Для контекстного менеджера всё ещё нормально использовать `with open(path) as f` или `with path.open() as f`.

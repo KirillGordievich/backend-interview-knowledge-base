@@ -620,6 +620,26 @@ class Circle:
         self._radius = value
 ```
 
+### Отложенная инициализация (lazy initialization) через property
+
+Паттерн, при котором тяжёлый ресурс создаётся не при инициализации объекта, а при первом обращении к нему:
+
+```python
+class Service:
+    def __init__(self):
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = ExpensiveClient()  # создаётся только при первом вызове
+        return self._client
+```
+
+При `Service()` — `ExpensiveClient` ещё не создан. При первом `service.client` — создаётся и кэшируется. При повторном — возвращается уже созданный.
+
+Зачем нужно: создание ресурса может быть дорогим (`DatabaseConnection`, `HttpClient`), но конкретному объекту он может вообще не понадобиться. `@property` делает метод похожим на обычный атрибут — `service.client` вместо `service.get_client()`.
+
 ---
 
 ## Чем отличаются classmethod и staticmethod
@@ -686,3 +706,81 @@ p = Point(1.0, 2.0)  # автоматический __init__
 | Hashable | нет (если не `frozen=True`) | да |
 | Распаковка | нет | да |
 | default_factory | да | нет |
+
+---
+
+## dataclass vs Pydantic
+
+`dataclass` и Pydantic решают похожую задачу — представление структурированных данных, но на разных уровнях.
+
+| | `dataclass` | Pydantic (`BaseModel`) |
+|---|---|---|
+| Назначение | Удобные классы для данных | Валидация и сериализация |
+| Runtime validation | нет | да |
+| Преобразование типов | нет | да (в зависимости от режима) |
+| JSON serialization | не основная задача | да |
+| Зависимости | стандартная библиотека | внешняя библиотека |
+| Overhead | минимальный | есть (validation) |
+| Хорош для API schemas | нет | да |
+| Хорош для domain models | да | зависит от проекта |
+
+**dataclass** — часть стандартной библиотеки, в первую очередь syntactic convenience. Автоматически генерирует `__init__`, `__repr__`, `__eq__`, поддерживает `frozen`, `slots`. При этом type hints сами по себе не дают runtime validation:
+
+```python
+@dataclass
+class User:
+    name: str
+    age: int
+
+user = User(name="John", age="25")  # Python не выбросит ошибку
+```
+
+**Pydantic** предназначен для runtime validation, parsing и serialization. Особенно полезен на границах системы — где данные приходят извне:
+
+```python
+class User(BaseModel):
+    name: str
+    age: int
+
+User(name="John", age="abc")  # ValidationError
+```
+
+**Когда что выбирать:** внешние данные (HTTP request, конфиг, message queue) → Pydantic. Внутренние модели, domain objects → `dataclass` обычно проще и достаточно. Но это не жёсткое правило — зависит от архитектуры.
+
+```
+HTTP request
+     ↓
+Pydantic DTO (валидация)
+     ↓
+Domain dataclass
+     ↓
+Business logic
+```
+
+---
+
+## Функциональное программирование vs ООП
+
+Главное различие — в модели состояния и композиции.
+
+**ООП** моделирует систему через объекты, которые инкапсулируют состояние и операции над ним:
+
+```python
+class Cart:
+    def __init__(self):
+        self.items = []
+
+    def add(self, item):
+        self.items.append(item)  # мутирует состояние
+```
+
+**FP** стремится отделить данные от операций и избегать мутаций:
+
+```python
+def add_item(items, item):
+    return [*items, item]  # возвращает новый список, не меняет старый
+```
+
+Ключевое отличие — mutable state vs immutable state. В ООП объект владеет состоянием и методы его изменяют. В FP чистые функции принимают данные и возвращают новые данные, не изменяя входные.
+
+**Python** — мультипарадигменный язык. Поддерживает оба подхода: полноценное ООП (классы, наследование, инкапсуляция) и элементы FP (функции первого класса, лямбды, `map`/`filter`, замыкания, `functools`). На практике Python-код обычно комбинирует оба стиля.

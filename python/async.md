@@ -146,6 +146,48 @@ await asyncio.to_thread(time.sleep, 5)
 - `async with` — асинхронный контекстный менеджер (методы `__aenter__` / `__aexit__`). Для ресурсов с асинхронной инициализацией/очисткой.
 - `async for` — асинхронная итерация (методы `__aiter__` / `__anext__`). Для потоковых данных из асинхронных источников.
 
+### Асинхронные списковые включения (async comprehensions)
+
+Обычное list comprehension работает с синхронными итераторами:
+
+```python
+result = [x * 2 for x in numbers]
+```
+
+Асинхронное — позволяет итерироваться по async-итератору:
+
+```python
+async def get_numbers():
+    for i in range(5):
+        yield i
+
+async def main():
+    result = [x * 2 async for x in get_numbers()]
+    # [0, 2, 4, 6, 8]
+```
+
+Полезно, когда источник данных асинхронный — HTTP API, стриминг из БД, чтение из очереди.
+
+**Важно:** `async for` не означает «параллельно». Элементы получаются последовательно, просто из асинхронного источника.
+
+### Чем `[await foo(x) for x in items]` отличается от `asyncio.gather`?
+
+`await` внутри comprehension выполняет операции **последовательно**:
+
+```python
+# Последовательно: foo(1) → ждём → foo(2) → ждём → foo(3) → ждём
+result = [await foo(x) for x in items]
+```
+
+`asyncio.gather` запускает их **конкурентно**:
+
+```python
+# Конкурентно: все запускаются сразу, ждём самый долгий
+result = await asyncio.gather(*(foo(x) for x in items))
+```
+
+Если `foo` — это HTTP-запрос, comprehension с `await` отправляет запросы один за другим, а `gather` — все сразу. Для независимых I/O-операций `gather` значительно быстрее.
+
 ---
 
 ## Примитивы синхронизации
