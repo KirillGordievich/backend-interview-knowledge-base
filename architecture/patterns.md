@@ -230,3 +230,183 @@ class OrderService:
 **Связь с репозиторием:** UoW — менеджер транзакций; Repository — абстракция доступа к данным. UoW объединяет несколько репозиториев под одну транзакцию.
 
 **Связь с DDD:** Aggregate — единица бизнес-логики, UoW — единица транзакционности. Один `commit()` = одна атомарная операция.
+
+---
+
+## Hexagonal Architecture (Ports and Adapters)
+
+Бизнес-логика находится в центре и не зависит от внешнего мира. Внешние технологии подключаются через интерфейсы (**ports**), а конкретные реализации — **adapters**.
+
+```
+              HTTP / FastAPI
+                    │
+                    ▼
+             ┌─────────────┐
+             │   Adapter    │
+             └──────┬──────┘
+                    │
+                    ▼
+           ┌─────────────────┐
+           │      PORT       │
+           │                 │
+           │  APPLICATION /  │
+           │     DOMAIN      │
+           │                 │
+           └─────────────────┘
+              ▲      ▲     ▲
+              │      │     │
+           Port    Port   Port
+              │      │     │
+              ▼      ▼     ▼
+           Postgres Redis  Kafka
+           Adapter Adapter Adapter
+```
+
+**Port** — интерфейс/контракт, через который приложение взаимодействует с внешним миром:
+
+```python
+class UserRepository(Protocol):
+    async def save(self, user: User) -> None: ...
+```
+
+**Adapter** — конкретная реализация порта:
+
+```python
+class PostgresUserRepository:
+    async def save(self, user: User) -> None:
+        # SQLAlchemy / PostgreSQL
+        ...
+```
+
+FastAPI — тоже adapter, только входящий. Он принимает HTTP-запрос и преобразует его в вызов application layer. Бизнес-логика не знает, что её вызвали через HTTP.
+
+```
+HTTP → FastAPI Adapter → Application → Domain
+                                          ↓
+                               UserRepository (Port)
+                                          ↑
+                              PostgreSQL Adapter → PostgreSQL
+```
+
+**Зачем:** если завтра PostgreSQL нужно заменить на MongoDB — бизнес-логика не меняется, меняется только adapter. То же самое если вместо HTTP понадобится gRPC или CLI.
+
+Пример структуры:
+
+```
+app/
+├── domain/
+│   └── users/
+│       ├── entities.py
+│       └── repositories.py       ← PORT
+├── application/
+│   └── users/
+│       └── service.py
+├── adapters/
+│   ├── http/
+│   │   └── users.py              ← FastAPI (входящий adapter)
+│   ├── persistence/
+│   │   └── postgres_users.py     ← PostgreSQL (исходящий adapter)
+│   └── messaging/
+│       └── kafka.py              ← Kafka (исходящий adapter)
+└── main.py
+```
+
+---
+
+## Как организовать большой проект на FastAPI и избежать сильной связности
+
+Главный принцип: FastAPI должен быть тонким delivery layer, а бизнес-логика не должна зависеть от FastAPI.
+
+### 1. Router должен быть максимально тонким
+
+Плохо — router содержит бизнес-логику, работу с БД, отправку писем:
+
+```python
+@router.post("/orders")
+async def create_order(data: OrderRequest, db: Session):
+    user = db.query(User).filter(...).first()
+    if not user:
+        raise HTTPException(...)
+    order = Order(...)
+    db.add(order)
+    await send_email(...)
+    return order
+```
+
+Хорошо — router только принимает запрос и вызывает сервис:
+
+```python
+@router.post("/orders")
+async def create_order(
+    data: CreateOrderRequest,
+    service: OrderService = Depends(get_order_service),
+):
+    return await service.create_order(data)
+```
+
+### 2. Business logic не должна зависеть от FastAPI
+
+Плохо — сервис выбрасывает `HTTPException`:
+
+```python
+class OrderService:
+    def create_order(self, data):
+        raise HTTPException(status_code=400, detail="Invalid order")
+```
+
+Хорошо — сервис выбрасывает доменное исключение, а API layer преобразует его в HTTP response:
+
+```python
+class OrderService:
+    def create_order(self, data):
+        if data.amount <= 0:
+            raise InvalidOrderError()
+```
+
+### 3. Repository abstraction
+
+Бизнес-логика не должна знать о конкретной БД:
+
+```python
+class OrderRepository(Protocol):
+    async def get(self, order_id: int) -> Order: ...
+    async def save(self, order: Order) -> None: ...
+
+class OrderService:
+    def __init__(self, repository: OrderRepository):
+        self.repository = repository
+```
+
+Конкретная реализация — в infrastructure. Service не знает, используется PostgreSQL, Redis или mock.
+
+### 4. Разделять модули по бизнес-доменам
+
+Вместо огромных `controllers/`, `services/`, `repositories/` — feature-oriented структура:
+
+```
+orders/
+    router.py
+    schemas.py
+    service.py
+    repository.py
+users/
+    router.py
+    schemas.py
+    service.py
+    repository.py
+```
+
+Всё, что относится к orders, находится рядом. При этом важно не допустить циклических зависимостей между модулями.
+
+### 5. Между модулями — через интерфейсы
+
+`OrderService` не должен лезть напрямую в таблицу `Payment`. Вместо этого — через `PaymentGateway` interface:
+
+```python
+class PaymentGateway(Protocol):
+    async def charge(self, amount: Decimal) -> PaymentResult: ...
+```
+
+### 6. Внешние системы изолировать
+
+Stripe, Kafka, Redis, S3 — не распространять их SDK по всему проекту. Обернуть в adapter, чтобы при замене provider'а не переписывать половину приложения.
