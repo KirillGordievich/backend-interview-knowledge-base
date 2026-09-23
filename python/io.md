@@ -206,11 +206,9 @@ with open('data.pkl', 'rb') as f:
 
 ---
 
-## pathlib vs os.path
+## Чем pathlib отличается от os.path и что выбрать?
 
-### pathlib — объектный подход
-
-`pathlib` представляет путь как объект `Path`, с которым работаешь через методы и оператор `/`:
+`pathlib` представляет путь как объект `Path`, с которым работаешь через методы и оператор `/`. `os.path` — старый функциональный API, где путь это просто строка.
 
 ```python
 from pathlib import Path
@@ -246,9 +244,7 @@ for file in path.rglob("*.py"):        # рекурсивно
 path.resolve()
 ```
 
-### os.path — функциональный подход
-
-Старый, но до сих пор активно используемый API:
+Если нужен `os.path`, вот основные функции:
 
 ```python
 import os
@@ -261,8 +257,6 @@ os.path.basename(path)    # file.txt
 os.path.dirname(path)     # data/users
 os.path.splitext(path)    # ('data/users/file', '.txt')
 ```
-
-### Что выбрать
 
 Для нового кода — `pathlib`. Читается естественнее, объектная модель пути, кроссплатформенность. `os.path` актуален в существующих проектах и когда используется API `os`. Переписывать рабочий код только ради замены `os.path` на `pathlib` — не стоит.
 
