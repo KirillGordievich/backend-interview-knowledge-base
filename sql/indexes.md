@@ -9,6 +9,86 @@
 
 ---
 
+## Какие типы индексов по структуре данных есть в PostgreSQL
+
+По умолчанию PostgreSQL создаёт B-Tree. Остальные нужно указывать явно через `USING`.
+
+### B-Tree (по умолчанию)
+
+Сбалансированное дерево. Подходит для большинства задач — поиск по равенству, диапазоны, сортировка.
+
+```sql
+CREATE INDEX idx_users_email ON users(email);  -- неявно USING btree
+CREATE INDEX idx_orders_created ON orders(created_at DESC);
+```
+
+Работает с операторами: `=`, `<`, `>`, `<=`, `>=`, `BETWEEN`, `IN`, `IS NULL`, `LIKE 'foo%'`.
+
+### Hash
+
+Хранит хеш значения. Быстрее B-Tree для точного совпадения (`=`), но не поддерживает диапазоны и сортировку.
+
+```sql
+CREATE INDEX idx_sessions_token ON sessions USING hash(token);
+```
+
+На практике используется редко — B-Tree почти всегда не хуже, а умеет больше.
+
+### GIN (Generalized Inverted Index)
+
+Инвертированный индекс — подходит для типов, где одно значение содержит несколько ключей: массивы, `jsonb`, полнотекстовый поиск. Для каждого элемента хранит список строк, где он встречается.
+
+```sql
+-- Поиск по элементу массива
+CREATE INDEX idx_posts_tags ON posts USING gin(tags);
+SELECT * FROM posts WHERE tags @> ARRAY['python'];
+
+-- Поиск по JSONB
+CREATE INDEX idx_events_data ON events USING gin(data);
+SELECT * FROM events WHERE data @> '{"type": "click"}';
+
+-- Полнотекстовый поиск
+CREATE INDEX idx_articles_body ON articles USING gin(to_tsvector('russian', body));
+SELECT * FROM articles WHERE to_tsvector('russian', body) @@ to_tsquery('python');
+```
+
+GIN медленнее обновляется чем B-Tree (запись дороже), зато очень быстро ищет.
+
+### GiST (Generalized Search Tree)
+
+Расширяемое дерево для нестандартных типов: геометрия, диапазоны (`tsrange`, `int4range`), географические данные (PostGIS). Поддерживает пересечение, вхождение, близость.
+
+```sql
+-- Пересечение диапазонов дат (например, бронирования)
+CREATE INDEX idx_bookings_period ON bookings USING gist(period);
+SELECT * FROM bookings WHERE period && '[2024-01-01, 2024-01-10]'::tsrange;
+```
+
+### BRIN (Block Range Index)
+
+Хранит не каждое значение, а диапазон значений для блока страниц. Очень маленький (килобайты вместо гигабайт), но работает только если данные физически упорядочены — то есть значение колонки коррелирует с позицией строки на диске.
+
+```sql
+-- Хорошо для монотонно растущих данных: created_at, id serial
+CREATE INDEX idx_logs_created ON logs USING brin(created_at);
+```
+
+Идеален для огромных append-only таблиц (логи, события), где B-Tree был бы слишком большим.
+
+---
+
+### Когда что использовать
+
+| Тип | Когда |
+|---|---|
+| **B-Tree** | Почти всегда — равенство, диапазоны, сортировка |
+| **Hash** | Только точное `=`, очень высокий throughput вставок (редко нужен) |
+| **GIN** | Массивы, JSONB, полнотекстовый поиск |
+| **GiST** | Диапазоны, геометрия, PostGIS |
+| **BRIN** | Огромные таблицы с монотонными данными (логи, события) |
+
+---
+
 ## Какие виды индексов бывают
 
 | Вид | Описание |
