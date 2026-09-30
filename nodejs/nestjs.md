@@ -821,6 +821,39 @@ Exception Filters ← при ошибке на любом этапе
 Response
 ```
 
+###  Что такое Reflector в NestJS?
+
+Reflector это удобный сервис для чтения metadata, которую ты повесил на классы и методы через декораторы.
+
+Самая частая реальная задача это сделать свои декораторы и потом прочитать их в Guard / Interceptor.
+
+```ts
+export const Roles = (...roles: string[]) =>
+  SetMetadata('roles', roles);
+
+@Roles('admin', 'manager')
+@Get('/users')
+getUsers() {
+  ...
+}
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const roles = this.reflector.get<string[]>(
+      'roles',
+      context.getHandler(),
+    );
+
+    // roles = ['admin', 'manager']
+
+    ...
+  }
+}
+```
+
 ### Guard vs Middleware
 
 Middleware работает на уровне HTTP — он знает `req`, `res`, `next`, но **не знает** какой handler будет вызван.
@@ -839,6 +872,10 @@ req → middleware → next  interceptor → next.handle() → result → interc
      (нет доступа              (доступ к результату)
       к результату)
 ```
+
+### Когда использовать Middleware?
+
+Middleware лучше использовать для низкоуровневой HTTP-обработки, когда достаточно req, res и next() и не нужен Nest execution context. Например, для request ID, технического логирования (лог только самого факта запроса), нормализации заголовков или подключения стороннего middleware (например, из какой то библиотеки). Если же логика зависит от конкретного controller/handler, metadata или результата выполнения handler'а, то надо выбирать Guard или Interceptor.
 
 ---
 
