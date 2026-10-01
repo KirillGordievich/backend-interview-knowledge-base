@@ -214,7 +214,7 @@ function area(shape: Shape): number {
         case "circle": return Math.PI;
         case "square": return 1;
         default:
-            const _exhaustive: never = shape;  // ошибка если добавили новый тип без обработки
+            const _exhaustive: never = shape;  // теперь ошибка если добавили новый тип к Shape без обработки, TS поймёт что _exhaustive не может быть never если ещё остались возможные значение после всех case
             throw new Error(`Unknown: ${_exhaustive}`);
     }
 }
@@ -260,9 +260,9 @@ type Admin = User & { role: "admin"; permissions: string[] };
 
 Частая ошибка: union на объектах — не "объединение полей", а "один из объектов".
 
-**Когда что:**
-- `interface` — когда описываешь форму объекта/класса, особенно в public API
-- `type` — когда нужны union-типы, условные типы, mapped types
+**Когда интерфейс, а когда типы?:**
+- `interface` — когда описываешь форму объекта/класса
+- `type` — использую больше для случаев, где нужны возможности системы типов: union, intersection, literal-типы, utility types, conditional types и т.д.
 
 ---
 
@@ -295,6 +295,10 @@ class User extends BaseEntity implements Serializable {
     serialize() { return JSON.stringify(this.toJSON()); }
 }
 ```
+
+**Когда выбрать интерфейс, а когда абстрактный класс?:**
+- `interface` — когда надо просто описать контракт объекта
+- `abstract class` — когда нужно описать контракт + общую реализацию, например, у нас будет 5 объектов с общим контрактом и общей реализацией, имеет смысл общую реализацюи вынести в абстрактный класс как дефолтный метод
 
 ---
 
