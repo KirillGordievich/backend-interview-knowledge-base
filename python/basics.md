@@ -461,6 +461,16 @@ list(keys)  # ['a', 'b'] — представление обновилось
 {True: 'a', 1: 'b', 1.0: 'c'}  # {True: 'c'}
 ```
 
+Это работает потому, что bool — подкласс int в Python:
+
+```python
+isinstance(True, int)  # True
+isinstance(False, int) # True
+
+True == 1    # True
+False == 0   # True
+```
+
 ---
 
 ### Как составить словарь из двух списков
