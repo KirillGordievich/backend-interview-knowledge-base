@@ -973,7 +973,9 @@ login(@Body() dto: LoginDto) { ... }
 
 ---
 
-## ConfigModule / ConfigService
+## Как сделать модуль глобальным?
+
+isGlobal: true делает этот модуль глобальным, чтобы не импортировать его в остальные модули.
 
 ```ts
 // app.module.ts
@@ -993,37 +995,13 @@ import { ConfigModule } from '@nestjs/config';
     ],
 })
 export class AppModule {}
-
-// Использование в сервисах
-@Injectable()
-export class AppService {
-    constructor(private config: ConfigService) {}
-
-    getDbUrl(): string {
-        return this.config.get<string>('DATABASE_URL');
-    }
-    getPort(): number {
-        return this.config.get<number>('PORT', 3000);  // 3000 — дефолт
-    }
-}
-
-// Типизированная конфигурация
-export default () => ({
-    database: {
-        url: process.env.DATABASE_URL,
-        pool: parseInt(process.env.DB_POOL ?? '10'),
-    },
-    jwt: {
-        secret: process.env.JWT_SECRET,
-        expiresIn: process.env.JWT_EXPIRES ?? '15m',
-    },
-});
-
-// В модуле:
-ConfigModule.forRoot({ load: [configuration] })
-// Использование:
-this.config.get('database.url')
 ```
+
+## Что такое forRoot \ forRootAsync \ Dynamic Module?
+
+Да, forRoot() это паттерн конфигурирования динамических модулей. Мы передаём туда параметры, на основании которых модуль инициализируется и регистрирует нужные зависимости. Например, в ConfigModule передаём путь к env-файлу, схему валидации и настройки глобальной доступности.
+
+Кратко - ты передаёшь параметры самому модулю, а он на их основе регистрирует необходимые провайдеры.
 
 ---
 
