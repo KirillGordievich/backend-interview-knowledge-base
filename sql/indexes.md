@@ -47,6 +47,12 @@ SELECT * FROM posts WHERE tags @> ARRAY['python'];
 CREATE INDEX idx_events_data ON events USING gin(data);
 SELECT * FROM events WHERE data @> '{"type": "click"}';
 
+-- GIN indexes on notification subscription settings.
+-- Used by the @> containment pre-filter so jsonb_array_elements is only
+-- executed for users/admins that actually have the target category/event.
+CREATE INDEX IF NOT EXISTS idx_users_notification_categories
+  ON users USING GIN ((settings -> 'notifications' -> 'categories'));
+
 -- Полнотекстовый поиск
 CREATE INDEX idx_articles_body ON articles USING gin(to_tsvector('russian', body));
 SELECT * FROM articles WHERE to_tsvector('russian', body) @@ to_tsquery('python');
