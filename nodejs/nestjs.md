@@ -357,19 +357,25 @@ Controller → RequestService (REQUEST) → SomeService → Repository
 
 ## Lifecycle hooks
 
-Scope отвечает на вопрос «сколько экземпляров и для кого?». Lifecycle — какие стадии проходит провайдер от создания до уничтожения.
+Scope отвечает на вопрос «сколько экземпляров и для кого?», а Lifecycle hooks позволяют выполнять определённые действия на разных этапах жизни приложения. Например, в onModuleInit я могу установить соединение с БД, в onApplicationBootstrap запустить background worker, а при завершении приложения закрыть соединения и корректно остановить фоновые задачи. Это удобно для управления ресурсами и graceful shutdown».
 
 ```ts
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     onModuleInit() {
         // Подключение к БД при старте модуля
+        await this.prisma.$connect();
+
+        console.log('Database connected');
     }
 
     onModuleDestroy() {
         // Закрытие соединения при уничтожении модуля
+        await this.prisma.$disconnect();
+        console.log('DB disconnected');
     }
 }
+
 ```
 
 Порядок вызова хуков:
